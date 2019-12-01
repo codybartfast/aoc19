@@ -85,13 +85,26 @@ let parseLine =
         let grpi = grp >> int
         grp 1, grpi 2
 
+let fuel x = 
+    max 0 (x / 3) - 2
+
 let Part1 (input : string[]) =
     input 
-    //|> Array.map parseLine
+    |> Array.map int
+    |> Array.map fuel
+    |> Array.sum
 
 
 (* ================ Part 2 ================ *)
 
 
-let Part2 result1 (input : string[]) =
-    "result2"
+let Part2 result1 (input : string[]) =    
+    input
+    |> Seq.map int
+    |> Seq.map (fun m ->
+        m
+        |> Seq.unfold (fun f ->
+            let f' = fuel f
+            if f' > 0 then  Some (f', f') else None)
+        |> Seq.sum)
+    |> Seq.sum

@@ -87,7 +87,7 @@ let parseLine =
 
 let Part1 (input : string[]) =
     input
-    |> Array.map parseLine
+    //|> Array.map parseLine
 
 
 (* ================ Part 2 ================ *)
