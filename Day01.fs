@@ -1,19 +1,17 @@
 module Day01
-
+let day = "01"
 
 (* ================ Part 1 ================ *)
 
 
-let parseInput input =
-    input |> Array.map int
+let parseLine = int
+let parseInput = Array.map parseLine
 
-let fuel m =
-    max 0 (m / 3) - 2
+let fuel m = max 0 ((m / 3) - 2)
 
 let Part1 (input : string[]) =
-    input
-    |> parseInput
-    |> Array.sumBy fuel
+    parseInput input
+    |> Seq.sumBy fuel
 
 
 (* ================ Part 2 ================ *)
@@ -21,10 +19,9 @@ let Part1 (input : string[]) =
 
 let rec incFuel m =
     match fuel m with
-    | z when z <= 0 -> 0
-    | f -> f + incFuel f
+    | f when f > 0 -> f + incFuel f
+    | _ -> 0
 
-let Part2 result1 (input : string[]) =
-    input
-    |> parseInput
+let Part2 r1 (input : string[])  =
+    parseInput input
     |> Seq.sumBy incFuel

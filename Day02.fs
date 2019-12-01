@@ -1,5 +1,5 @@
-module Day00
-let day = "00"
+module Day02
+let day = "02"
 
 //#nowarn "0025"
 

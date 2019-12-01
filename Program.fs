@@ -2,26 +2,27 @@
 open System.IO
 open System.Diagnostics
 
-printfn ""
 let sw = Stopwatch ()
-let showTime () = 
+
+let showTime () =
     printfn "(%s seconds)" (sw.Elapsed.TotalSeconds.ToString("n3"))
     printfn ""
 
-let getInputFile name =
-    Path.Combine(__SOURCE_DIRECTORY__, "inputs", "input" + name + ".txt") 
-let readLines name = File.ReadAllLines(getInputFile name)
+let inputFile name =
+    Path.Combine(__SOURCE_DIRECTORY__, "inputs", "input" + name + ".txt")
 
-open Day01
-let name = "01"
 
-let lines = readLines name
+// To change day make sure the day's file is included in AdventOfCode2019.fsproj
+// and change this line.  Dates are zero padded, i.e. Day01 not Day1.
+open Day02
+
 
 [<EntryPoint>]
 let main argv =
 
-    let input1 =  lines  
+    let input1 = File.ReadAllLines(inputFile day)
 
+    printfn ""
     printfn "Part 1 ..."
     sw.Restart ()
     let result1 = Part1 input1
@@ -30,8 +31,9 @@ let main argv =
     showTime ()
 
     printfn "Part 2 ..."
-    sw.Restart() 
+    sw.Restart()
     let result2 = Part2 result1 input1
+    sw.Stop()
     printfn "%A" result2
     showTime ()
 
