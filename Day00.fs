@@ -82,7 +82,7 @@ let filterCount predicate = Seq.filter predicate >> Seq.length
 let parseInput =
     let parseLine =  rxMatch "(.*)" >> fun mtch ->
         let grp idx = groupValue mtch idx
-        let grpi = grp >> int
+        let grpi = grp >> int           ////////////////fields?
         grp 1
     Array.map parseLine
 
