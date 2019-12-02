@@ -43,7 +43,7 @@ type Grid<'a>(jagged: 'a[][]) =
     member this.Transform (generate: Grid<'a> -> int -> int -> 'a) =
         [| for x in 0 .. maxX do
             [| for y in 0 .. maxY do
-                generate this x y |] |] 
+                generate this x y |] |]
         |> Grid
 
     member _.Flattern () =
@@ -89,8 +89,8 @@ let Part1 (lines : string[]) =
     let fields = rxSplit (line) ","
     let data = parseInput fields
 
-    let run v1 v2 = 
-        let rec execute idx = 
+    let run v1 v2 =
+        let rec execute idx =
             if data.[idx] = 99 then data.[0] else
             let [| code; src1; src2; dest |] = data.[idx .. idx + 3]
             let operation = match code with 1 -> (+) | 2 -> (*)
@@ -100,12 +100,41 @@ let Part1 (lines : string[]) =
         data.[2] <- v2
         execute 0
 
-
     run 12 02
 
 (* ================ Part 2 ================ *)
 
 
 let Part2 r1 (lines : string[]) =
-    //let input = parseInput lines
-    ()
+    let line = lines.[0]
+    //let line = "1,9,10,3,2,3,11,0,99,30,40,50"
+    let fields = rxSplit (line) ","
+    let program = parseInput fields
+    let mem = Array.copy program
+    let resetMem () =
+        program
+        |> Array.iteri (fun i v -> mem.[i] <- v)
+
+    let run (n, v) = 
+        let rec execute idx = 
+            if mem.[idx] = 99 then 
+                (mem.[0], 100 * n + v) 
+            else
+                let [| code; src1; src2; dest |] = mem.[idx .. idx + 3]
+                let operation = match code with 1 -> (+) | 2 -> (*)
+                mem.[dest] <- operation mem.[src1] mem.[src2]
+                execute (idx + 4)
+        resetMem ()
+        mem.[1] <- n
+        mem.[2] <- v
+        execute 0
+
+    // run (12, 02)
+
+    [ for noun in 0..99 ->
+        [for verb in 0..99  ->
+            (noun, verb) ]]
+    |> Seq.collect id
+    |> Seq.map run
+    |> Seq.find (fst >> (=) 19690720)
+    |> snd
