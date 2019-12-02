@@ -43,9 +43,8 @@ type Grid<'a>(jagged: 'a[][]) =
     member this.Transform (generate: Grid<'a> -> int -> int -> 'a) =
         [| for x in 0 .. maxX do
             [| for y in 0 .. maxY do
-                generate this x y
-            |]
-        |] |> Grid
+                generate this x y |] |] 
+        |> Grid
 
     member _.Flattern () =
         Array.collect id data
@@ -70,7 +69,7 @@ let toHex = (BitConverter.ToString
 let groupValue (m:Match) (idx:int) = m.Groups.[idx].Value
 let rxMatch pattern str = Regex.Match(str, pattern)
 let rxMatches pattern str = Regex.Matches(str, pattern)
-let rxSplit pattern str = Regex.Split(str, pattern)
+let rxSplit pattern str = Regex.Split(pattern, str) //////////////////////////////////////////////////////
 let lnSplit str = rxSplit @"\r?\n" str
 let (||~) pred1 pred2 = (fun a -> (pred1 a) || (pred2 a))
 let (&&~) pred1 pred2 = (fun a -> (pred1 a) && (pred2 a))
@@ -80,14 +79,12 @@ let filterCount predicate = Seq.filter predicate >> Seq.length
 (* ================ Part 1 ================ *)
 
 
-let parseLine = 
-    rxMatch "(.*)"
-    >> fun mtch ->
+let parseInput =
+    let parseLine =  rxMatch "(.*)" >> fun mtch ->
         let grp idx = groupValue mtch idx
         let grpi = grp >> int
         grp 1
-
-let parseInput = Array.map parseLine
+    Array.map parseLine
 
 let Part1 (lines : string[]) =
     let input = parseInput lines
@@ -98,5 +95,5 @@ let Part1 (lines : string[]) =
 
 
 let Part2 r1 (lines : string[]) =
-    let input = parseInput lines
+    //let input = parseInput lines
     ()
