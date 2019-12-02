@@ -1,4 +1,4 @@
-﻿open Day02
+﻿open Day03
 
 open System.Diagnostics
 
