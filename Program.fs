@@ -1,22 +1,17 @@
-﻿open Day03
+﻿open Day04 // file needs to included in AdventOfCode2019.fsproj
 
-open System.Diagnostics
+let sw = System.Diagnostics.Stopwatch ()
 
-let sw = Stopwatch ()
-let time () = sw.Elapsed.TotalSeconds.ToString("n3")
+let time fn title = 
+    sw.Restart ()
+    let result = fn ()
+    sw.Stop ()
+    let elapsed = sw.Elapsed.TotalSeconds.ToString("n3")
+    printfn "%s (%ss): %A" title elapsed result
 
 [<EntryPoint>]
 let main _ =
     printfn "Line count: %i" (lines.Length)
-
-    sw.Restart ()
-    let result1 = Part1 ()
-    sw.Stop ()
-    printfn "Part 1 (%ss): %A" (time ())  result1
-
-    sw.Restart()
-    let result2 = Part2 ()
-    sw.Stop()
-    printfn "Part 2 (%ss): %A" (time ())  result2
-
+    time Part1 "Part 1"
+    time Part2 "Part 2"
     0
