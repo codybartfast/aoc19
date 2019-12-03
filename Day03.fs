@@ -19,19 +19,19 @@ let instrs2 = input.[1]
 
 let expand instr =
     let (direction, count) = instr
-    let step = 
-        match direction with 
+    let step =
+        match direction with
         | "U" -> (fun (x, y) -> (x + 1, y))
         | "R" -> (fun (x, y) -> (x, y + 1))
         | "D" -> (fun (x, y) -> (x - 1, y))
         | "L" -> (fun (x, y) -> (x, y - 1))
-    Seq.init count (fun i -> step)
+    Seq.init count (fun _ -> step)
 
-let apply path instr =
+let applyTo path instr =
     (path, (expand instr))
     ||> Seq.fold (fun pth f -> (f pth.Head)::pth)
 
-let wire instrs = instrs |> Seq.fold apply [0,0] |> List.rev
+let wire instrs = instrs |> Seq.fold applyTo [0,0] |> List.rev
 
 let wire1 = wire instrs1
 let wire2 = wire instrs2
@@ -46,10 +46,10 @@ let Part1 () =
     |> snd
 
 let Part2 () =
-    let length coord =
+    let combinedLength coord =
         List.findIndex ((=) coord) wire1
         + List.findIndex ((=) coord) wire2
 
     intersections
-    |> Seq.map length
+    |> Seq.map combinedLength
     |> Seq.min
