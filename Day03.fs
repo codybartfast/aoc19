@@ -28,19 +28,55 @@ let filterCount predicate = Seq.filter predicate >> Seq.length
 let inputFile = Path.Combine("inputs", "input" + day + ".txt")
 let lines = File.ReadAllLines(inputFile)
 let input =
-    let parseLine =  rxMatch "(.*)" >> fun mtch ->
-        let grp idx = groupValue mtch idx
-        let grpi = grp >> int
-        grp 1
-    //[| parseLine lines.[0] |]
-    lines |> Array.map parseLine
+    lines
+    |> Array.map (fun line ->
+        line.Split(",")
+        |> Array.map (fun field -> (field.[0..0], int field.[1..])))
 
 
 (* ================ Part 1 ================ *)
 
 
+
 let Part1 () =
-    input
+    let instrs1 = input.[0]
+    let instrs2 = input.[1]
+
+    let goUp (x, y) = (x + 1, y)
+    let goRight (x, y) = (x, y + 1)
+    let goDown (x, y) = (x - 1, y)
+    let goLeft (x, y) = (x, y - 1)
+
+    let expand (dir, count) =
+        let step =
+            match dir with
+            | "U" -> goUp
+            | "R" -> goRight
+            | "D" -> goDown
+            | "L" -> goLeft
+        Seq.init count (fun i -> step)
+
+    let apply path inst =
+        (expand inst)
+        |> Seq.fold
+            (fun path f -> (f path.Head)::path)
+            path
+
+    let wire instrs =
+        instrs
+        |> Seq.fold apply [0,0]
+            
+    let coords1 = wire instrs1 |> Set
+    let coords2 = wire instrs2 |> Set
+    Set.intersect coords1 coords2
+    |> Set.toSeq
+    |> Seq.sortBy (fun (x, y) -> (abs x) + (abs y))
+    |> Seq.skip 1
+    |> Seq.head
+
+     
+
+
 
 
 (* ================ Part 2 ================ *)
