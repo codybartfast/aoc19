@@ -34,14 +34,9 @@ let candidates low high pwdLen =
         digits ]
 
 let rec hasDouble candidate =
-    
     match candidate with
     | [_] | [] -> false
-    | a::(b::(c::t)) when a = b -> 
-        match b <> c with
-        | true -> true
-        | false -> hasDouble (List.skipWhile ((=) b) (c::t))
-    | a::([b]) when a = b -> true
+    | a::(b::_) when a = b -> true
     | _::t -> hasDouble t
 
 let rec isIncreasing candidate =
