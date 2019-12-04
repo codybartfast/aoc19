@@ -7,8 +7,8 @@ let inputFile = Path.Combine("inputs", "input" + day + ".txt")
 let lines = File.ReadAllLines(inputFile)
 
 let (low, high) =
-    let parts = lines.[0].Split("-") |> Array.map int
-    (parts.[0], parts.[1])
+    let parts = lines.[0].Split("-")
+    (int parts.[0], int parts.[1])
 let pwdLen = 6
 
 let candidates low high pwdLen = seq{
@@ -18,22 +18,21 @@ let candidates low high pwdLen = seq{
         |> List.ofArray }
 
 let rec isIncreasing = function
-    | [_] | [] -> true
-    | a::(b::t) -> a <= b && isIncreasing (b::t)
+    | a::b::t -> a <= b && isIncreasing (b::t)
+    | _ -> true
 
 let rec hasDouble = function
-    | [_] | [] -> false
-    | a::(b::_) when a = b -> true
-    | _::t -> hasDouble t
+    | a::b::t -> if a = b then true else hasDouble (b::t)
+    | _ -> false
 
 let rec hasExactDouble = function
-    | [_] | [] -> false
-    | a::(b::(c::t)) when a = b -> 
+    | a::b::c::t when a = b -> 
         if b <> c 
         then true 
         else hasExactDouble (List.skipWhile ((=) b) t)
-    | a::([b]) when a = b -> true
+    | a::[b] when a = b -> true
     | _::t -> hasExactDouble t
+    | _ -> false
 
 let Part1 () =
     candidates low high pwdLen
