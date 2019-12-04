@@ -1,9 +1,8 @@
-﻿open Day04 // file needs to included in AdventOfCode2019.fsproj
+﻿open Day05 // file needs to included in AdventOfCode2019.fsproj
 
-let sw = System.Diagnostics.Stopwatch ()
-
-let time title fn = 
-    sw.Restart ()
+let time title fn =
+    let sw = System.Diagnostics.Stopwatch ()
+    sw.Start ()
     let result = fn ()
     sw.Stop ()
     let elapsed = sw.Elapsed.TotalSeconds.ToString("n3")

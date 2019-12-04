@@ -1,5 +1,5 @@
-module Day00
-let day = "00"
+module Day05
+let day = "05"
 
 open System
 open System.IO
@@ -24,7 +24,6 @@ let input = lines |> Array.map parseLine
 
 let Part1 () =
     input
-
 
 let Part2 () =
     ()
