@@ -2,7 +2,7 @@
 
 let sw = System.Diagnostics.Stopwatch ()
 
-let time fn title = 
+let time title fn = 
     sw.Restart ()
     let result = fn ()
     sw.Stop ()
@@ -12,6 +12,6 @@ let time fn title =
 [<EntryPoint>]
 let main _ =
     printfn "Line count: %i" (lines.Length)
-    time Part1 "Part 1"
-    time Part2 "Part 2"
+    time "Part 1" Part1
+    time "Part 2" Part2
     0
