@@ -11,7 +11,7 @@ let program = compile lines.[0]
 let memory = Array.copy program
 let reset ()  = program |> Array.iteri (fun i v -> memory.[i] <- v)
 
-let mutable sysId = 0
+let mutable sysId = -1
 let readInput () = sysId
 
 let mutable lastOutput = -1
@@ -95,18 +95,13 @@ let operation ptr =
 
 let run id =
     sysId <- id
-    let rec execute ptr =
-        if halt ptr then
-            ()
-        else
-            execute ((operation ptr) ptr)
+    let rec execute ptr = 
+       if halt ptr then lastOutput else execute ((operation ptr) ptr)
     execute 0
 
 let Part1 () =
     run 1
-    lastOutput
 
 let Part2 () =
     reset ()
     run 5
-    lastOutput
