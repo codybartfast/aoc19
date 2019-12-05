@@ -20,7 +20,7 @@ let writeOutput value = lastOutput <- value
 let read addr = memory.[addr]
 let write addr value = memory.[addr] <- value
 
-let halt addr = read addr = 99
+let halt ptr = read ptr = 99
 
 let posDE n = n % 100
 let posC n = n % 1000 / 100
@@ -50,15 +50,19 @@ let arg3 ptr =
 let add ptr =
     (write (read (ptr + 3)) (arg1 ptr + arg2 ptr))
     (ptr + 4)
+
 let mult ptr =
     (write (read (ptr + 3)) (arg1 ptr * arg2 ptr))
     (ptr + 4)
+
 let input ptr =
     (write (read (ptr + 1)) (readInput ()))
     (ptr + 2)
+
 let output ptr =
     writeOutput (arg1 ptr)
     (ptr + 2)
+
 let jumpIfTrue ptr =
     if (arg1 ptr) <> 0 then (arg2 ptr) else (ptr + 3)
 
