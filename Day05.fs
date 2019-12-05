@@ -11,8 +11,8 @@ let program = compile lines.[0]
 let memory = Array.copy program
 let reset ()  = program |> Array.iteri (fun i v -> memory.[i] <- v)
 
-let mutable sysId = -1
-let readInput () = sysId
+let mutable systemId = -1
+let readInput () = systemId
 
 let mutable lastOutput = -1
 let writeOutput value = lastOutput <- value
@@ -93,9 +93,9 @@ let operation ptr =
     | 8 -> equals
     | u -> failwithf "Unexpected opCode: %i (ptr: %i)" u ptr
 
-let run id =
-    sysId <- id
-    let rec execute ptr = 
+let run sysId =
+    systemId <- sysId
+    let rec execute ptr =
        if halt ptr then lastOutput else execute ((operation ptr) ptr)
     execute 0
 
