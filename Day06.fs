@@ -3,9 +3,6 @@ let day = "06"
 
 open System.IO
 
-let print obj= (printfn "%O" obj)
-let tPrint obj = (print obj); obj
-
 let inputFile = Path.Combine("inputs", "input" + day + ".txt")
 let lines = File.ReadAllLines(inputFile)
 
