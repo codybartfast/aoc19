@@ -22,7 +22,7 @@ let computer program readInput writeOutput =
     let mutable wroteOutput = false
     let mutable ptrOnPause = 0
     let mutable running = true
-    
+
     let writeOutput v = wroteOutput <- true; writeOutput v
 
     let memory = Array.copy program
@@ -44,7 +44,7 @@ let computer program readInput writeOutput =
         | 1 -> read (ptr + offset)
         | u -> failwithf "Unexpected mode flag: %i (ptr: %i)" u ptr
 
-    let arg1 = readArg 1 posC 
+    let arg1 = readArg 1 posC
     let arg2 = readArg 2 posB
     let arg3 = readArg 3 posA
 
@@ -94,42 +94,26 @@ let computer program readInput writeOutput =
         | 8 -> equals
         | u -> failwithf "Unexpected opCode: %i (ptr: %i)" u ptr
 
-    let step () =
-        if running then
-            let ptr = ptrOnPause
-            if halt ptr 
-            then running <- false
-            else ptrOnPause <- ((operation ptr) ptr)
-            running
-        else
-            running
-
     let runToOutput () =
         let rec run ptr =
             if not running then running
-            elif wroteOutput then ptrOnPause <- ptr;  running                
+            elif wroteOutput then ptrOnPause <- ptr;  running
             elif halt ptr then running <- false; running
             else run ((operation ptr) ptr)
-
         wroteOutput <- false
         run ptrOnPause
 
-    let runToHalt () =
-        let rec run ptr =
-            if halt ptr then false else run ((operation ptr) ptr)
-        run 0
-        
     runToOutput
 
 let amplify settings =
     let settings = Array.ofList settings
     let outputs = Array.init settings.Length (fun _ -> 0)
 
-    let inputs setting source =
+    let inputs setting input =
         let mutable cold = true
-        fun () -> if cold then cold <- false; setting else source ()
+        fun () -> if cold then cold <- false; setting else input ()
 
-    let amplifiers = 
+    let amplifiers =
         settings
         |> Array.mapi (fun i setting ->
             let getInput = inputs setting (fun () -> outputs.[(i + 4) % 5])
@@ -137,16 +121,17 @@ let amplify settings =
             computer program getInput setOutput)
 
     let rec amplify () =
-        let areRunning = amplifiers |> Array.map (fun amp -> amp ())
-        if Array.exists id areRunning then amplify ()
-    amplify () 
-    outputs.[4]
+        amplifiers
+            |> Array.map (fun amp -> amp ())
+            |> Array.exists id // still running?
+            |> function true -> amplify () | _ -> outputs.[4]
+    amplify ()
 
 let findMaxPerm values =
     values
     |> permutations
     |> List.map amplify
-    |> List.max    
+    |> List.max
 
 let Part1 () = findMaxPerm [0; 1; 2; 3; 4]
 
