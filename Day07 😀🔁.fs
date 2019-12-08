@@ -48,38 +48,19 @@ let computer program readInput writeOutput =
     let arg2 = readArg 2 posB
     let arg3 = readArg 3 posA
 
-    let add ptr =
-        (write (read (ptr + 3)) (arg1 ptr + arg2 ptr))
-        (ptr + 4)
-
-    let mult ptr =
-        (write (read (ptr + 3)) (arg1 ptr * arg2 ptr))
-        (ptr + 4)
-
-    let input ptr =
-        (write (read (ptr + 1)) (readInput ()))
-        (ptr + 2)
-
-    let output ptr =
-        writeOutput (arg1 ptr)
-        (ptr + 2)
-
-    let jumpIfTrue ptr =
-        if (arg1 ptr) <> 0 then (arg2 ptr) else (ptr + 3)
-
-    let jumpIfFalse ptr =
-        if (arg1 ptr) = 0 then (arg2 ptr) else ptr + 3
+    let add ptr = (write (read (ptr + 3)) (arg1 ptr + arg2 ptr)); (ptr + 4)
+    let mult ptr = (write (read (ptr + 3)) (arg1 ptr * arg2 ptr)); (ptr + 4)
+    let input ptr = (write (read (ptr + 1)) (readInput ())); (ptr + 2)
+    let output ptr = writeOutput (arg1 ptr); (ptr + 2)
+    let jumpIfTrue ptr = if (arg1 ptr) <> 0 then (arg2 ptr) else (ptr + 3)
+    let jumpIfFalse ptr = if (arg1 ptr) = 0 then (arg2 ptr) else ptr + 3
 
     let lessThan ptr =
-        write
-            (read (ptr + 3))
-            (if (arg1 ptr) < (arg2 ptr) then 1 else 0)
+        write (read (ptr + 3)) (if (arg1 ptr) < (arg2 ptr) then 1 else 0)
         (ptr + 4)
 
     let equals ptr =
-        write
-            (read (ptr + 3))
-            (if (arg1 ptr) = (arg2 ptr) then 1 else 0)
+        write (read (ptr + 3)) (if (arg1 ptr) = (arg2 ptr) then 1 else 0)
         (ptr + 4)
 
     let operation ptr =
