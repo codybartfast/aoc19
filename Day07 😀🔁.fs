@@ -23,7 +23,7 @@ let computer program readInput writeOutput =
     let mutable ptrOnPause = 0
     let mutable running = true
 
-    let writeOutput v = wroteOutput <- true; writeOutput v
+    let writeOutput value = wroteOutput <- true; writeOutput value
 
     let memory = Array.copy program
     let read addr = memory.[addr]
@@ -107,6 +107,8 @@ let computer program readInput writeOutput =
 
 let amplify settings =
     let settings = Array.ofList settings
+    let ampCount = settings.Length
+    let ampCountDec = ampCount - 1
     let outputs = Array.init settings.Length (fun _ -> 0)
 
     let inputs setting input =
@@ -116,16 +118,17 @@ let amplify settings =
     let amplifiers =
         settings
         |> Array.mapi (fun i setting ->
-            let getInput = inputs setting (fun () -> outputs.[(i + 4) % 5])
+            let getInput = inputs setting (fun () ->
+                outputs.[(i + ampCountDec) % ampCount])
             let setOutput value = outputs.[i] <- value
             computer program getInput setOutput)
 
-    let rec amplify () =
+    let rec amplify' () =
         amplifiers
             |> Array.map (fun amp -> amp ())
             |> Array.exists id // still running?
-            |> function true -> amplify () | _ -> outputs.[4]
-    amplify ()
+            |> function true -> amplify' () | _ -> outputs.[ampCountDec]
+    amplify' ()
 
 let findMaxPerm values =
     values
