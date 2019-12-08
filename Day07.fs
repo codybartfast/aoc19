@@ -22,27 +22,14 @@ let lines = File.ReadAllLines(inputFile)
 let compile (str: string) = str.Split "," |> Array.map int
 let mutable program = compile lines.[0]
 
-let mutable phaseSettings = [||]
-
-let mutable outputA = -1
-let mutable outputB = -1
-let mutable outputC = -1
-let mutable outputD = -1
-let mutable outputE = -1
-
-let reset () =
-    outputA <- -1;
-    outputB <- -1;
-    outputC <- -1;
-    outputD <- -1;
-    outputE <- -1;
-
 let computer readInput writeOutput =
-    let mutable wroteOuput = false
-    let mutable halted = false
-
     let memory = Array.copy program
     let reset ()  = program |> Array.iteri (fun i v -> memory.[i] <- v)
+
+    let mutable wroteOutput = false
+    let writeOutput v =
+        wroteOutput <- true
+        writeOutput v
 
     let read addr = memory.[addr]
     let write addr value = memory.[addr] <- value
@@ -120,55 +107,109 @@ let computer readInput writeOutput =
         | 8 -> equals
         | u -> failwithf "Unexpected opCode: %i (ptr: %i)" u ptr
 
-    let run () =
-        wroteOuput <- false
+    let mutable ptrOnPause = 0
+    let mutable running = true
+
+    let step () =
+        if running then
+            let ptr = ptrOnPause
+            if halt ptr 
+            then running <- false
+            else ptrOnPause <- ((operation ptr) ptr)
+            running
+        else
+            running
+
+    let runTillOutput () =
+        wroteOutput <- false
+
         let rec execute ptr =
-            if halt ptr then halted <- true; halted
-           // elif wroteOuput then halted
-            else execute ((operation ptr) ptr)
-        if halted then halted else execute 0
-    run
+            if not running then
+                running
+            elif wroteOutput then
+                ptrOnPause <- ptr
+                running                
+            elif halt ptr then
+                running <- false; running
+            else
+                execute ((operation ptr) ptr)
 
-let readA () = if outputA = -1 then phaseSettings.[0] else outputE
-let writeA value = outputA <- value
+        execute ptrOnPause
 
-let readB () = if outputB = -1 then phaseSettings.[1] else outputA
-let writeB value = outputB <- value
+    let run () =
+        while step () do ()
+        false
+        
+    runTillOutput
 
-let readC () = if outputC = -1 then phaseSettings.[2] else outputB
-let writeC value = outputC <- value
-
-let readD () = if outputD = -1 then phaseSettings.[3] else outputC
-let writeD value = outputD <- value
-
-let readE () = if outputE = -1 then phaseSettings.[4] else outputD
-let writeE value = outputE <- value
+let provideInput initValue source =
+    let mutable unused = true
+    fun () ->
+        if unused
+        then unused <- false; initValue
+        else source ()
 
 let run5 settings =
-    reset ()
-    phaseSettings <- Array.ofList settings
-    let runA = computer readA writeA
-    let runB = computer readB writeB
-    let runC = computer readC writeB
-    let runD = computer readD writeD
-    let runE = computer readE writeE
-    runA ();
-    runB (); 
-    runC (); 
-    runD (); 
-    runE ();
+    let phaseSettings = Array.ofList settings
+
+    let mutable outputA = 0
+    let mutable outputB = 0
+    let mutable outputC = 0
+    let mutable outputD = 0
+    let mutable outputE = 0
+
+    let writeA value = outputA <- value
+
+    let runA = 
+        computer 
+            (provideInput phaseSettings.[0] (fun () -> outputE))
+            (fun value -> outputA <- value)
+    let runB = 
+        computer 
+            (provideInput phaseSettings.[1] (fun () -> outputA))
+            (fun value -> outputB <- value)
+    let runC = 
+        computer 
+            (provideInput phaseSettings.[2] (fun () -> outputB))
+            (fun value -> outputC <- value)
+    let runD = 
+        computer 
+            (provideInput phaseSettings.[3] (fun () -> outputC))
+            (fun value -> outputD <- value)
+    let runE = 
+        computer 
+            (provideInput phaseSettings.[4] (fun () -> outputD))
+            (fun value -> outputE <- value)
+
+    let rec run () =
+        printfn "%i - %i - %i - %i - %i" outputA outputB outputC outputD outputE    
+        let areRunning = [runA (); runB (); runC (); runD (); runE ()]
+        print areRunning
+        print (List.exists id areRunning)
+        if List.exists id areRunning then run ()
+    run () 
+    
+
     outputE
+    // runA ()
 
-let test1 = @"3,15,3,16,1002,16,10,16,1,16,15,15,4,15,99,0,0"
+let testA1 = "3,15,3,16,1002,16,10,16,1,16,15,15,4,15,99,0,0"
+let testB1 = "3,26,1001,26,-4,26,3,27,1002,27,2,27,1,27,26,"
+                + "27,4,27,1001,28,-1,28,1005,28,6,99,0,0,5"
 
-let Part1 () =
-    // ()
-    run5  [4; 3; 2; 1; 0]
+let Part1 () = ()
     // [0; 1; 2; 3; 4]
     // |> permutations
     // |> List.map run5
     // |> List.max
 
-let Part2 () =
-    //program <- compile test1
-    ()
+let Part2 () = 
+    // program <- compile testA1
+    // print (run5 [4; 3; 2; 1; 0])
+    // program <- compile testB1
+    // run5 [9; 8; 7; 6; 5]
+
+    [5; 6; 7; 8; 9]
+    |> permutations
+    |> List.map run5
+    |> List.max

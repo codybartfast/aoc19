@@ -1,4 +1,4 @@
-﻿open Day08 // file needs to included in AdventOfCode2019.fsproj
+﻿open Day07 // file needs to included in AdventOfCode2019.fsproj
 
 let time title fn =
     let sw = System.Diagnostics.Stopwatch ()
