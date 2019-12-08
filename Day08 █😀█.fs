@@ -11,18 +11,16 @@ let inputFile = Path.Combine("inputs", "input" + day + ".txt")
 let lines = File.ReadAllLines(inputFile)
 
 let pixels =
-    lines.[0].ToCharArray ()
-    |> Array.map ((Char.GetNumericValue) >> int)
+    lines.[0].ToCharArray () |> Array.map (Char.GetNumericValue >> int)
 
 let width = 25
 let height = 6
-let pixelsPerLayer = width * height
-let depth = pixels.Length / pixelsPerLayer
+let area = width * height
+let depth = pixels.Length / area
 
 let layers =
-    [|for z in [0 .. (depth - 1)] ->
-        let start = z * pixelsPerLayer
-        pixels.[start .. (start + pixelsPerLayer - 1)]|]
+    [|for z in [0 .. depth - 1] ->
+        pixels.[z * area .. ((z + 1) * area) - 1]|]
 
 let render () =
     let rec renderPixel row col layer =
