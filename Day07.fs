@@ -22,22 +22,6 @@ let lines = File.ReadAllLines(inputFile)
 let compile (str: string) = str.Split "," |> Array.map int
 let mutable program = compile lines.[0]
 
-    // let mutable lastOutput = -1
-    // let writeOutput value = lastOutput <- (nPrint value)
-
-    // let mutable (inputs) = null
-    // let setInputs [a; b; c; d; e] =
-    //     inputs <- (seq{
-    //              yield a; yield 0;
-    //              yield b; yield (nPrint lastOutput);
-    //              yield c; yield (nPrint lastOutput);
-    //              yield d; yield (nPrint lastOutput);
-    //              yield e; yield (nPrint lastOutput);  })
-    //         .GetEnumerator ()
-
-        // let readInput () =
-        // inputs.MoveNext () |> ignore
-        // inputs.Current
 let mutable phaseSettings = [||]
 
 let mutable outputA = -1
@@ -140,7 +124,7 @@ let computer readInput writeOutput =
         wroteOuput <- false
         let rec execute ptr =
             if halt ptr then halted <- true; halted
-            elif wroteOuput then halted
+           // elif wroteOuput then halted
             else execute ((operation ptr) ptr)
         if halted then halted else execute 0
     run
@@ -168,14 +152,18 @@ let run5 settings =
     let runC = computer readC writeB
     let runD = computer readD writeD
     let runE = computer readE writeE
-    runA (); runB (); runC (); runD (); runE ();
+    runA ();
+    runB (); 
+    runC (); 
+    runD (); 
+    runE ();
     outputE
 
 let test1 = @"3,15,3,16,1002,16,10,16,1,16,15,15,4,15,99,0,0"
 
 let Part1 () =
-    settins = [4; 3; 2; 1; 0]
-    run5
+    // ()
+    run5  [4; 3; 2; 1; 0]
     // [0; 1; 2; 3; 4]
     // |> permutations
     // |> List.map run5
