@@ -3,10 +3,6 @@ let day = "07"
 
 open System.IO
 
-let print obj= (printfn "%O" obj)
-let tPrint obj = (print obj); obj
-let nPrint = id
-
 let rec permutations list =
     let rec insertAlong i list =
         match list with
@@ -20,17 +16,16 @@ let rec permutations list =
 let inputFile = Path.Combine("inputs", "input" + day + ".txt")
 let lines = File.ReadAllLines(inputFile)
 let compile (str: string) = str.Split "," |> Array.map int
-let mutable program = compile lines.[0]
+let program = compile lines.[0]
 
-let computer readInput writeOutput =
-    let memory = Array.copy program
-    let reset ()  = program |> Array.iteri (fun i v -> memory.[i] <- v)
-
+let computer program readInput writeOutput =
     let mutable wroteOutput = false
-    let writeOutput v =
-        wroteOutput <- true
-        writeOutput v
+    let mutable ptrOnPause = 0
+    let mutable running = true
+    
+    let writeOutput v = wroteOutput <- true; writeOutput v
 
+    let memory = Array.copy program
     let read addr = memory.[addr]
     let write addr value = memory.[addr] <- value
 
@@ -43,23 +38,15 @@ let computer readInput writeOutput =
 
     let opCode = read >> posDE
 
-    let arg1 ptr =
-        match (read >> posC) ptr with
-        | 0 -> read (read (ptr + 1))
-        | 1 -> read (ptr + 1)
-        | u -> failwithf "Unexpected mode for first para: %i (ptr: %i)" u ptr
+    let readArg offset modeFlag ptr =
+        match ptr |> (read >> modeFlag) with
+        | 0 -> read (read (ptr + offset))
+        | 1 -> read (ptr + offset)
+        | u -> failwithf "Unexpected mode flag: %i (ptr: %i)" u ptr
 
-    let arg2 ptr =
-        match (read >> posB) ptr with
-        | 0 -> read (read (ptr + 2))
-        | 1 -> read (ptr + 2)
-        | u -> failwithf "Unexpected mode for second para: %i (ptr: %i)" u ptr
-
-    let arg3 ptr =
-        match (read >> posA) ptr with
-        | 0 -> read (read (ptr + 3))
-        | 1 -> read (ptr + 3)
-        | u -> failwithf "Unexpected mode for thrid para: %i (ptr: %i)" u ptr
+    let arg1 = readArg 1 posC 
+    let arg2 = readArg 2 posB
+    let arg3 = readArg 3 posA
 
     let add ptr =
         (write (read (ptr + 3)) (arg1 ptr + arg2 ptr))
@@ -107,9 +94,6 @@ let computer readInput writeOutput =
         | 8 -> equals
         | u -> failwithf "Unexpected opCode: %i (ptr: %i)" u ptr
 
-    let mutable ptrOnPause = 0
-    let mutable running = true
-
     let step () =
         if running then
             let ptr = ptrOnPause
@@ -120,96 +104,50 @@ let computer readInput writeOutput =
         else
             running
 
-    let runTillOutput () =
+    let runToOutput () =
+        let rec run ptr =
+            if not running then running
+            elif wroteOutput then ptrOnPause <- ptr;  running                
+            elif halt ptr then running <- false; running
+            else run ((operation ptr) ptr)
+
         wroteOutput <- false
+        run ptrOnPause
 
-        let rec execute ptr =
-            if not running then
-                running
-            elif wroteOutput then
-                ptrOnPause <- ptr
-                running                
-            elif halt ptr then
-                running <- false; running
-            else
-                execute ((operation ptr) ptr)
-
-        execute ptrOnPause
-
-    let run () =
-        while step () do ()
-        false
+    let runToHalt () =
+        let rec run ptr =
+            if halt ptr then false else run ((operation ptr) ptr)
+        run 0
         
-    runTillOutput
+    runToOutput
 
-let provideInput initValue source =
-    let mutable unused = true
-    fun () ->
-        if unused
-        then unused <- false; initValue
-        else source ()
+let amplify settings =
+    let settings = Array.ofList settings
+    let outputs = Array.init settings.Length (fun _ -> 0)
 
-let run5 settings =
-    let phaseSettings = Array.ofList settings
+    let inputs setting source =
+        let mutable cold = true
+        fun () -> if cold then cold <- false; setting else source ()
 
-    let mutable outputA = 0
-    let mutable outputB = 0
-    let mutable outputC = 0
-    let mutable outputD = 0
-    let mutable outputE = 0
+    let amplifiers = 
+        settings
+        |> Array.mapi (fun i setting ->
+            let getInput = inputs setting (fun () -> outputs.[(i + 4) % 5])
+            let setOutput value = outputs.[i] <- value
+            computer program getInput setOutput)
 
-    let writeA value = outputA <- value
+    let rec amplify () =
+        let areRunning = amplifiers |> Array.map (fun amp -> amp ())
+        if Array.exists id areRunning then amplify ()
+    amplify () 
+    outputs.[4]
 
-    let runA = 
-        computer 
-            (provideInput phaseSettings.[0] (fun () -> outputE))
-            (fun value -> outputA <- value)
-    let runB = 
-        computer 
-            (provideInput phaseSettings.[1] (fun () -> outputA))
-            (fun value -> outputB <- value)
-    let runC = 
-        computer 
-            (provideInput phaseSettings.[2] (fun () -> outputB))
-            (fun value -> outputC <- value)
-    let runD = 
-        computer 
-            (provideInput phaseSettings.[3] (fun () -> outputC))
-            (fun value -> outputD <- value)
-    let runE = 
-        computer 
-            (provideInput phaseSettings.[4] (fun () -> outputD))
-            (fun value -> outputE <- value)
-
-    let rec run () =
-        printfn "%i - %i - %i - %i - %i" outputA outputB outputC outputD outputE    
-        let areRunning = [runA (); runB (); runC (); runD (); runE ()]
-        print areRunning
-        print (List.exists id areRunning)
-        if List.exists id areRunning then run ()
-    run () 
-    
-
-    outputE
-    // runA ()
-
-let testA1 = "3,15,3,16,1002,16,10,16,1,16,15,15,4,15,99,0,0"
-let testB1 = "3,26,1001,26,-4,26,3,27,1002,27,2,27,1,27,26,"
-                + "27,4,27,1001,28,-1,28,1005,28,6,99,0,0,5"
-
-let Part1 () = ()
-    // [0; 1; 2; 3; 4]
-    // |> permutations
-    // |> List.map run5
-    // |> List.max
-
-let Part2 () = 
-    // program <- compile testA1
-    // print (run5 [4; 3; 2; 1; 0])
-    // program <- compile testB1
-    // run5 [9; 8; 7; 6; 5]
-
-    [5; 6; 7; 8; 9]
+let findMaxPerm values =
+    values
     |> permutations
-    |> List.map run5
-    |> List.max
+    |> List.map amplify
+    |> List.max    
+
+let Part1 () = findMaxPerm [0; 1; 2; 3; 4]
+
+let Part2 () = findMaxPerm [5; 6; 7; 8; 9]
