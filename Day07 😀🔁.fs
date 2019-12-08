@@ -77,9 +77,9 @@ let computer program readInput writeOutput =
 
     let runToOutput () =
         let rec run ptr =
-            if not running then running
-            elif wroteOutput then ptrOnPause <- ptr;  running
-            elif halt ptr then running <- false; running
+            if not running then false
+            elif wroteOutput then ptrOnPause <- ptr;  true
+            elif halt ptr then running <- false; false
             else run ((operation ptr) ptr)
         wroteOutput <- false
         run ptrOnPause
