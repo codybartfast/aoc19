@@ -26,16 +26,16 @@ let computer program readInput writeOutput =
 
     let halt ptr = read ptr = 99L
 
-    let posDE n = (int n) % 100
-    let posC n = (int n) % 1000 / 100
-    let posB n = (int n) % 10000 / 1000
-    let posA n = (int n) % 100000 / 10000
+    let posDE n = n % 100
+    let posC n = n % 1000 / 100
+    let posB n = n % 10000 / 1000
+    let posA n = n % 100000 / 10000
 
-    let opCode = read >> posDE
+    let opCode = read >> int >>posDE
 
     let readArg offset modeFlag ptr =
         let addr = ptr + offset
-        match ptr |> (read >> modeFlag) with
+        match ptr |> (read >> int >> modeFlag) with
         | 0 -> read (int (read addr))
         | 1 -> read addr
         | 2 -> read ((int (read addr)) + relBase)
@@ -46,7 +46,7 @@ let computer program readInput writeOutput =
 
     let writeArg offset modeFlag ptr value =
         let addr = ptr + offset
-        match ptr |> (read >> modeFlag) with
+        match ptr |> (read >> int >>modeFlag) with
         | 0 -> write (int (read addr)) value
         | 1 -> failwith "Oh! Oh! Oh!"
         | 2 -> write ((int (read addr)) + relBase) value
