@@ -31,7 +31,7 @@ let computer program readInput writeOutput =
     let posB n = n % 10000 / 1000
     let posA n = n % 100000 / 10000
 
-    let opCode = read >> int >>posDE
+    let opCode = read >> int >> posDE
 
     let readArg offset modeFlag ptr =
         let addr = ptr + offset
@@ -46,7 +46,7 @@ let computer program readInput writeOutput =
 
     let writeArg offset modeFlag ptr value =
         let addr = ptr + offset
-        match ptr |> (read >> int >>modeFlag) with
+        match ptr |> (read >> int >> modeFlag) with
         | 0 -> write (int (read addr)) value
         | 1 -> failwith "Oh! Oh! Oh!"
         | 2 -> write ((int (read addr)) + relBase) value
@@ -64,7 +64,7 @@ let computer program readInput writeOutput =
     let lessThan ptr =
         (if arg1 ptr < arg2 ptr then 1L else 0L) |> write3 ptr;  ptr + 4
     let equals ptr =
-        (if arg1 ptr =arg2 ptr then 1L else 0L) |> write3 ptr;  ptr + 4
+        (if arg1 ptr = arg2 ptr then 1L else 0L) |> write3 ptr;  ptr + 4
     let shiftRB ptr = relBase <- relBase + (int (arg1 ptr));  ptr + 2
 
     let operation ptr =
