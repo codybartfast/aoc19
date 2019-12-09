@@ -1,5 +1,5 @@
-module Day00
-let day = "00"
+module Day10
+let day = "10"
 
 open System
 open System.IO
