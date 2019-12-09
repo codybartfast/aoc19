@@ -128,7 +128,7 @@ let test1c = "104,1125899906842624,99"
 
 let run code =
     program <- compile code
-    let input () = 1L
+    let input () = 2L
     let mutable result = []
     let output value = result <- value::result
     (computer program input output) () |> ignore
