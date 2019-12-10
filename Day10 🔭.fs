@@ -38,13 +38,10 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
     member this.Copy() = this.Transform (fun g x y -> g.[x,y])
 
     member _.Coords() =
-        seq{ for y in 0 .. maxY do
-                for x in 0 .. maxX do
-                     yield (x, y) }
+        seq{ for y in 0 .. maxY do for x in 0 .. maxX do yield (x, y) }
 
     member this.FilterSeq(v) =
-        this.Coords ()
-        |> Seq.filter (fun (x, y) -> this.[x, y] = v)
+        this.Coords () |> Seq.filter (fun (x, y) -> this.[x, y] = v)
 
     member this.Transform(generate: Grid<'a> -> int -> int -> 'a) =
         [| for y in 0 .. maxY do
