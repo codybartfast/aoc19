@@ -19,11 +19,13 @@ let asteroids =
         |> Array.choose id)
     |> Array.collect id
 
-let visiblFrom observer =
+let visiblFrom location =
     let vect (x, y) (x', y') = (x' - x), (y' - y)
     let angle (a, b) =
         (atan2 (float -a) (float b) + Math.PI) % (2.0 * Math.PI)
-    asteroids |> Array.groupBy ((vect observer) >> angle)
+    asteroids
+    |> Array.filter ((<>) location)
+    |> Array.groupBy ((vect location) >> angle)
 
 let visibleFromStation =
     asteroids
