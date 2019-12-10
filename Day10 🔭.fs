@@ -8,35 +8,35 @@ let readLines day =
     File.ReadAllLines (Path.Combine("inputs", "input" + day + ".txt"))
 let lines = readLines day
 
-let roids =
+let asteroids =
     lines
     |> Array.mapi (fun y line ->
         line.ToCharArray ()
-        |> Array.mapi (fun x c -> 
+        |> Array.mapi (fun x c ->
             match c with
-            | '#' -> Some (x, y) 
+            | '#' -> Some (x, y)
             | _ -> None)
         |> Array.choose id)
     |> Array.collect id
 
-let vect (x, y) (x', y') = (x' - x), (y' - y)
-let angle (a, b) = (atan2 (float -a) (float b) + Math.PI) % (2.0 * Math.PI)
+let visiblFrom observer =
+    let vect (x, y) (x', y') = (x' - x), (y' - y)
+    let angle (a, b) =
+        (atan2 (float -a) (float b) + Math.PI) % (2.0 * Math.PI)
+    asteroids |> Array.groupBy ((vect observer) >> angle)
 
-let visiblFrom coord = roids |> Array.groupBy ((vect coord) >> angle)
-
-let mutable visible = Array.empty
+let mutable visibleFromStation = Array.empty
 
 let Part1 () =
-    let (location, alligned) = 
-        roids
-        |> Array.map (fun coord -> coord, (visiblFrom coord))
-        |> Array.sortByDescending (snd >> Array.length)
+    visibleFromStation <-
+        asteroids
+        |> Array.map visiblFrom
+        |> Array.sortByDescending Array.length
         |> Array.head
-    visible <- alligned
-    alligned.Length
-    
+    visibleFromStation.Length
+
 let Part2 () =
-    visible
+    visibleFromStation
     |> Array.sortBy fst
     |> Array.item 199
     |> snd
