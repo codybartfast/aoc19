@@ -25,15 +25,13 @@ let visiblFrom observer =
         (atan2 (float -a) (float b) + Math.PI) % (2.0 * Math.PI)
     asteroids |> Array.groupBy ((vect observer) >> angle)
 
-let mutable visibleFromStation = Array.empty
+let visibleFromStation =
+    asteroids
+    |> Array.map visiblFrom
+    |> Array.sortByDescending Array.length
+    |> Array.head
 
-let Part1 () =
-    visibleFromStation <-
-        asteroids
-        |> Array.map visiblFrom
-        |> Array.sortByDescending Array.length
-        |> Array.head
-    visibleFromStation.Length
+let Part1 () = visibleFromStation |> Array.length
 
 let Part2 () =
     visibleFromStation
