@@ -145,13 +145,26 @@ let markObscured coord =
 let visible coord = (markObscured coord).FilterSeq('#')
 let visCount (grid: Grid<char>) = grid.FilterSeq('#') |> Seq.length
 
-let Part1 () =
-    //sprintf "%s%A" nl grid
-    grid.Coords()|> Seq.maxBy (visible >> Seq.length) |> visible |> Seq.length
-    // let r = markObscured (11, 13)
-    // printfn "%s%A" nl r
-    // visCount r
+let mutable station = (-1, -1)
 
-let Part2 () =
-    printfn ""
-    ()
+let Part1 () =
+    let location, seen =
+        grid.Coords()
+        |> Seq.map (fun c -> (c, (visible >> Seq.length) c))
+        |> Seq.maxBy snd
+    station <- location
+    seen    
+
+let angle (a, b) = (atan2 (float -a) (float b) + Math.PI) % (2. * Math.PI)
+
+let targets () =
+    visible station
+    |> Seq.sortBy ((vect station) >> angle)
+    |> List.ofSeq
+
+
+let Part2 () = 
+    targets () 
+    |> Seq.item 199
+    |> fun (x, y) -> x * 100 + y
+
