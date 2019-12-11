@@ -42,12 +42,10 @@ let code = lines.[0]
 let compile (str: string) = str.Split "," |> Array.map int64
 
 let computer program readInput writeOutput =
-    let mutable wroteOutput = false
     let mutable relBase = 0
-
+    
     let memKB = 1_024
     let memory = Array.init (memKB * 1_024) (fun _ -> 0L)
-    program |> Array.iteri (fun i v -> memory.[i] <- v)
     let read (addr: int) = memory.[int addr]
     let write (addr: int) (value: int64) = memory.[addr] <- value
 
@@ -112,6 +110,7 @@ let computer program readInput writeOutput =
             if halt ptr then false else run ((operation ptr) ptr)
         run 0
 
+    program |> Array.iteri write
     runToHalt
 
 type Dir = U | R | D | L
