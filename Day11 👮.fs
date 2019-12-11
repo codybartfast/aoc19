@@ -112,7 +112,7 @@ type Robot =
       History: Map<(int * int), int64>}
 let (black, white) = 0L, 1L
 
-let readColour robot =
+let currentColour robot =
     match robot.History.TryFind (robot.Coord) with
     | None -> 0L
     | Some col -> col
@@ -135,19 +135,21 @@ let paintPanel robot (colour, turnDir)=
         { robot with Coord = newCoord }
     robot |> paint |> turn |> move
 
-let robbieApi startCol =
+let robotApi startCol =
     let mutable robbie =
         { Coord = (0, 0)
           Direction = U
           History = [(0, 0), startCol] |> Map }
     let mutable received = []
-    let provideInput () = readColour robbie
+
+    let provideInput () = currentColour robbie
+
     let handleOutput out =
         received <- out::received
         match received with
         | [_] -> ()
-        | [turnDir; col] ->
-            robbie <- paintPanel robbie (col, turnDir)
+        | [turnDir; colour] ->
+            robbie <- paintPanel robbie (colour, turnDir)
             received <- []
         | _ -> failwith "He's making a list, he's checking it twice"
 
@@ -155,13 +157,11 @@ let robbieApi startCol =
 
 let goPaint startColour =
     let program = compile code
-    let readInput, writeOutput, getHistory = robbieApi startColour
+    let readInput, writeOutput, getHistory = robotApi startColour
     let run = computer program readInput writeOutput
     run () |> ignore
     getHistory ()
 
 let Part1 () = goPaint black |> Map.count
 
-let Part2 () =
-    let hull = goPaint white
-    sprintf "%s%s%s" nl (mapToString hull) nl
+let Part2 () = sprintf "%s%s%s" nl (mapToString (goPaint white)) nl
