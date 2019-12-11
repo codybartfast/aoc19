@@ -6,44 +6,9 @@ open System.IO
 
 let nl = System.Environment.NewLine
 
-let mapAsString (map:Map<(int * int), int>) =
-    // aoc 18:20
-    let fromSquare = function
-        | None | Some 0 -> ' '
-        | Some 1 -> '█'
-        | u -> failwithf "Unexpected square value: %O" u
-
-    let coords = map |> Map.toList |> List.map fst
-    let minX = coords |> List.map fst |> List.min
-    let maxX = coords |> List.map fst |> List.max
-    let minY = coords |> List.map snd |> List.min
-    let maxY = coords |> List.map snd |> List.max
-
-    let zerodMap =
-        map
-        |> Map.toSeq
-        |> Seq.map (fun ((x,y), square) -> ((x-minX,y-minY), square))
-        |> Map
-    let (x, y) = (1 + maxX-minX, 1 + maxY-minY)
-
-    let array = 
-        Array.init (y)  (fun  y -> 
-            Array.init (x) (fun x -> 
-                zerodMap.TryFind (x,y) |> fromSquare))
-    array
-    |> Array.map String
-    |> String.concat nl
-
-let readLines day =
-    Path.Combine("inputs", "input" + day + ".txt")
-    |> File.ReadAllLines
-let lines = readLines day
-let code = lines.[0]
-let compile (str: string) = str.Split "," |> Array.map int64
-
 let computer program readInput writeOutput =
     let mutable relBase = 0
-    
+
     let memKB = 1_024
     let memory = Array.init (memKB * 1_024) (fun _ -> 0L)
     let read (addr: int) = memory.[int addr]
@@ -113,63 +78,90 @@ let computer program readInput writeOutput =
     program |> Array.iteri write
     runToHalt
 
-type Dir = U | R | D | L
-type Robot = (int * int) * Dir
-type Hull = Map<(int * int), int>
-let black = 0
-let white = 1
+let mapToString (map:Map<(int * int), int64>) =
+    let valueAsString = function
+        | None | Some 0L -> ' '
+        | Some 1L -> '█'
+        | u -> failwithf "Unexpected value: %O" u
 
-let readColour (robot, hull: Hull) =
-    let coord,  _ = robot
-    match hull.TryFind coord with
-    | None -> black
+    let coords = map |> Map.toList |> List.map fst
+    let minX = coords |> (List.map fst >> List.min)
+    let maxX = coords |> (List.map fst >> List.max)
+    let minY = coords |> (List.map snd >> List.min)
+    let maxY = coords |> (List.map snd >> List.max)
+    let (width, height) = (1 + maxX-minX, 1 + maxY-minY)
+    let (xShift, yShift) = ((+) minX), ((+) minY)
+
+    Array.init (height)  (fun  y ->
+        Array.init (width) (fun x ->
+            map.TryFind (xShift x, yShift y) |> valueAsString))
+    |> Array.map String
+    |> String.concat nl
+
+let readLines day =
+    Path.Combine("inputs", "input" + day + ".txt")
+    |> File.ReadAllLines
+let lines = readLines day
+let code = lines.[0]
+let compile (str: string) = str.Split "," |> Array.map int64
+
+type Direction = U | R | D | L
+type Robot =
+    { Coord : int * int
+      Direction: Direction
+      History: Map<(int * int), int64>}
+let (black, white) = 0L, 1L
+
+let readColour robot =
+    match robot.History.TryFind (robot.Coord) with
+    | None -> 0L
     | Some col -> col
 
-let act (robot, hull) (col, turn) =
-    let paint (robot, hull: Hull) =
-        let coord, _ = robot
-        robot, hull.Add (coord, col)
-    let turn (robot, hull) =
-        let coord, dir = robot
-        let dir =
-            match dir, turn with
-            | U, 1 -> R | R, 1 -> D | D, 1 -> L | L, 1 -> U
-            | U, 0 -> L | L, 0 -> D | D, 0 -> R | R, 0 -> U
+let paintPanel robot (colour, turnDir)=
+    let paint robot =
+        { robot with History = robot.History.Add (robot.Coord, colour) }
+    let turn robot =
+        let newDirection =
+            match robot.Direction, turnDir with
+            | U, 1L -> R | R, 1L -> D | D, 1L -> L | L, 1L -> U
+            | U, 0L -> L | L, 0L -> D | D, 0L -> R | R, 0L -> U
             | _ -> failwith "Oh! Oh! Oh!"
-        (coord, dir), hull
-    let move (robot, hull) =
-        let (x, y), dir = robot
-        let coord =
-            match dir with
+        { robot with Direction = newDirection}
+    let move robot =
+        let newCoord =
+            let (x, y) = robot.Coord
+            match robot.Direction with
             | U -> x, y - 1 | R -> x + 1, y | D -> x, y + 1 | L -> x - 1, y
-        (coord, dir), hull
-    (robot, hull) |> paint |> turn |> move
+        { robot with Coord = newCoord }
+    robot |> paint |> turn |> move
 
-let robHull startCol =
-    let mutable robHull = ((0, 0), U), ([(0, 0), startCol] |> Map)
+let robbieApi startCol =
+    let mutable robbie =
+        { Coord = (0, 0)
+          Direction = U
+          History = [(0, 0), startCol] |> Map }
     let mutable received = []
-    let provideInput () = readColour robHull
+    let provideInput () = readColour robbie
     let handleOutput out =
         received <- out::received
         match received with
         | [_] -> ()
-        | [dir; col] ->
-            robHull <- act robHull (col, dir)
+        | [turnDir; col] ->
+            robbie <- paintPanel robbie (col, turnDir)
             received <- []
         | _ -> failwith "He's making a list, he's checking it twice"
 
-    provideInput, handleOutput, fun () -> robHull
+    provideInput, handleOutput, fun () -> robbie.History
 
 let goPaint startColour =
     let program = compile code
-    let readInput, writeOutput, getRobHull = robHull startColour
-    let run = computer program (readInput >> int64) (int >> writeOutput)
+    let readInput, writeOutput, getHistory = robbieApi startColour
+    let run = computer program readInput writeOutput
     run () |> ignore
-    getRobHull ()
+    getHistory ()
 
-
-let Part1 () = goPaint black |> snd |> Map.count
+let Part1 () = goPaint black |> Map.count
 
 let Part2 () =
-    let hull = goPaint white |> snd
-    sprintf "%s%s%s" nl (mapAsString hull) nl
+    let hull = goPaint white
+    sprintf "%s%s%s" nl (mapToString hull) nl
