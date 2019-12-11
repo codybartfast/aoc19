@@ -19,17 +19,18 @@ let asteroids =
         |> Array.choose id)
     |> Array.collect id
 
-let visiblFrom location =
+// azimuth = angle from north
+let asteroidsByAzimuthFrom location =
     let vect (x, y) (x', y') = (x' - x), (y' - y)
-    let angle (a, b) =
+    let azimuth (a, b) =
         (atan2 (float -a) (float b) + Math.PI) % (2.0 * Math.PI)
     asteroids
     |> Array.filter ((<>) location)
-    |> Array.groupBy ((vect location) >> angle)
+    |> Array.groupBy ((vect location) >> azimuth)
 
 let visibleFromStation =
     asteroids
-    |> Array.map visiblFrom
+    |> Array.map asteroidsByAzimuthFrom
     |> Array.sortByDescending Array.length
     |> Array.head
 
