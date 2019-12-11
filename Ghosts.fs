@@ -1,9 +1,11 @@
-// GHOSTS OF CHRISTMAS PAST
-// ========================
+// GHOSTS OF ADVENT PAST
+// =====================
 
 module Ghosts
 
 open System
+
+let nl = System.Environment.NewLine
 
 // strings, chars, hex
 let len (seq : seq<'a>) = Seq.length seq
@@ -12,16 +14,6 @@ let fromChars (chrs : char[]) = String(chrs)
 let encode (str : string) = System.Text.Encoding.ASCII.GetBytes(str);
 let toHex = (BitConverter.ToString
             >> (fun str ->str.Replace("-", String.Empty)))
-
-let shiftToOrigin coords =
-    // aoc18:10
-    let xMin = coords |> List.groupBy fst |> List.minBy fst |> fst
-    let yMin = coords |> List.groupBy snd |> List.minBy fst |> fst
-    coords |> List.map (fun (x,y) -> (x - xMin, y - yMin))
-
-let toRows coords =
-    // aoc18:10
-    coords |> List.groupBy snd |> List.sortBy fst |> List.map snd
 
 let rec pairCombos = function
     // aoc18:02
@@ -39,46 +31,29 @@ let rec permutations list =
     | [] -> [[]]
     | head::tail -> List.collect (insertAlong head) (permutations tail)
 
+let mapToString (map:Map<(int * int), int64>) =
+    // aoc18:20
+    let valueAsString = function
+        | None | Some 0L -> ' '
+        | Some 1L -> '█'
+        | u -> failwithf "Unexpected value: %O" u
 
-module Ring =
-    // aoc18:09
-    type Ring<'a> =
-        {   Item : 'a
-            mutable Prev : Ring<'a>
-            mutable Next : Ring<'a> }
+    let coords = map |> Map.toList |> List.map fst
+    let minX = coords |> (List.map fst >> List.min)
+    let maxX = coords |> (List.map fst >> List.max)
+    let minY = coords |> (List.map snd >> List.min)
+    let maxY = coords |> (List.map snd >> List.max)
+    let (width, height) = (1 + maxX-minX, 1 + maxY-minY)
+    let (xShift, yShift) = ((+) minX), ((+) minY)
 
-    let singleton item =
-        let rec s = {Item = item; Prev = s; Next = s }
-        s
-
-    let insert item ring =
-        let pair =  {Item = item; Prev = ring; Next = ring.Next }
-        ring.Next.Prev <- pair
-        ring.Next <- pair
-        pair
-
-    let remove ring =
-        if ring.Next = ring then failwith "Oops! Last item standing"
-        else
-            let item = ring.Item
-            ring.Prev.Next <- ring.Next
-            ring.Next.Prev <- ring.Prev
-            ring.Next
-
-    let rec forward n ring =
-        match n with
-        | 0 -> ring
-        | n -> forward (n-1) ring.Next
-
-    let rec back n ring =
-        match n with
-        | 0 -> ring
-        | n -> back (n-1) ring.Prev
-
-let nl = System.Environment.NewLine
+    Array.init (height)  (fun  y ->
+        Array.init (width) (fun x ->
+            map.TryFind (xShift x, yShift y) |> valueAsString))
+    |> Array.map String
+    |> String.concat nl
 
 type Grid<'a when 'a : equality>(jagged: 'a[][]) =
-    // aoc15:18
+    // aoc15:18    
     let data = jagged
     let maxX = (Array.length (data.[0])) - 1
     let maxY = (Array.length data) - 1
