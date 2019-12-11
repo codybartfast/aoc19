@@ -3,7 +3,36 @@ let day = "11"
 
 open System
 open System.IO
-open System.Text.RegularExpressions
+
+let nl = System.Environment.NewLine
+
+let mapAsString (map:Map<(int * int), int>) =
+    // aoc 18:20
+    let fromSquare = function
+        | None | Some 0 -> ' '
+        | Some 1 -> '█'
+        | u -> failwithf "Unexpected square value: %O" u
+
+    let coords = map |> Map.toList |> List.map fst
+    let minX = coords |> List.map fst |> List.min
+    let maxX = coords |> List.map fst |> List.max
+    let minY = coords |> List.map snd |> List.min
+    let maxY = coords |> List.map snd |> List.max
+
+    let zerodMap =
+        map
+        |> Map.toSeq
+        |> Seq.map (fun ((x,y), square) -> ((x-minX,y-minY), square))
+        |> Map
+    let (x, y) = (1 + maxX-minX, 1 + maxY-minY)
+
+    let array = 
+        Array.init (y)  (fun  y -> 
+            Array.init (x) (fun x -> 
+                zerodMap.TryFind (x,y) |> fromSquare))
+    array
+    |> Array.map String
+    |> String.concat nl
 
 let readLines day =
     Path.Combine("inputs", "input" + day + ".txt")
@@ -13,12 +42,8 @@ let code = lines.[0]
 let compile (str: string) = str.Split "," |> Array.map int64
 
 let computer program readInput writeOutput =
-    let mutable running = true
     let mutable wroteOutput = false
-    let mutable ptrOnPause = 0
     let mutable relBase = 0
-
-    let writeOutput value = wroteOutput <- true; writeOutput value
 
     let memKB = 1_024
     let memory = Array.init (memKB * 1_024) (fun _ -> 0L)
@@ -90,91 +115,62 @@ let computer program readInput writeOutput =
     runToHalt
 
 type Dir = U | R | D | L
-type Robot = (int * int) * Dir * Map<(int * int), int>
+type Robot = (int * int) * Dir
+type Hull = Map<(int * int), int>
 let black = 0
 let white = 1
 
-let readColour (robot: Robot) =
-    let coord,  _, panel = robot
-    match panel.TryFind coord with
+let readColour (robot, hull: Hull) =
+    let coord,  _ = robot
+    match hull.TryFind coord with
     | None -> black
     | Some col -> col
 
-let act (robot: Robot) (col, turn) =
-    let paint (robot: Robot) =
-        let coord, dir, panel = robot
-        coord, dir, panel.Add (coord, col)
-    let turn robot =
-        let coord, dir, panel = robot
+let act (robot, hull) (col, turn) =
+    let paint (robot, hull: Hull) =
+        let coord, _ = robot
+        robot, hull.Add (coord, col)
+    let turn (robot, hull) =
+        let coord, dir = robot
         let dir =
             match dir, turn with
             | U, 1 -> R | R, 1 -> D | D, 1 -> L | L, 1 -> U
             | U, 0 -> L | L, 0 -> D | D, 0 -> R | R, 0 -> U
             | _ -> failwith "Oh! Oh! Oh!"
-        coord, dir, panel
-    let move robot =
-        let (x, y), dir, panel = robot
+        (coord, dir), hull
+    let move (robot, hull) =
+        let (x, y), dir = robot
         let coord =
             match dir with
             | U -> x, y - 1 | R -> x + 1, y | D -> x, y + 1 | L -> x - 1, y
-        coord, dir, panel
-    robot |> paint |> turn |> move
+        (coord, dir), hull
+    (robot, hull) |> paint |> turn |> move
 
-let robbie startCol =
-    let mutable robbie = (0, 0), U, [(0, 0), startCol] |> Map
-    let provideInput () = readColour robbie
-
+let robHull startCol =
+    let mutable robHull = ((0, 0), U), ([(0, 0), startCol] |> Map)
     let mutable received = []
+    let provideInput () = readColour robHull
     let handleOutput out =
         received <- out::received
         match received with
         | [_] -> ()
         | [dir; col] ->
-            robbie <- act robbie (col, dir)
+            robHull <- act robHull (col, dir)
             received <- []
         | _ -> failwith "He's making a list, he's checking it twice"
 
-    provideInput, handleOutput, fun () -> robbie
+    provideInput, handleOutput, fun () -> robHull
 
-let Part1 () =
+let goPaint startColour =
     let program = compile code
-    let readInput, writeOutput, getRobbie = robbie black
+    let readInput, writeOutput, getRobHull = robHull startColour
     let run = computer program (readInput >> int64) (int >> writeOutput)
     run () |> ignore
-    let _, _, panel = getRobbie ()
-    panel.Count
+    getRobHull ()
 
-let display (map:Map<(int * int), int>) =
-    // aoc 18:20
-    let fromSquare = function
-        | None | Some 0 -> ' '
-        | Some 1 -> '█'
 
-    let coords = map |> Map.toList |> List.map fst
-    let minX = coords |> List.map fst |> List.min
-    let maxX = coords |> List.map fst |> List.max
-    let minY = coords |> List.map snd |> List.min
-    let maxY = coords |> List.map snd |> List.max
-
-    let zerodMap =
-        map
-        |> Map.toSeq
-        |> Seq.map (fun ((x,y), square) -> ((x-minX,y-minY), square))
-        |> Map
-    let (X, Y) = (1 + maxX-minX, 1 + maxY-minY)
-
-    let array = 
-        Array.init (Y)  (fun  y -> 
-            Array.init (X) (fun x -> 
-                zerodMap.TryFind (x,y) |> fromSquare))
-    array
-    |> Array.iter (fun (line:char[]) -> printfn "%s" (String (line)))
-    map
+let Part1 () = goPaint black |> snd |> Map.count
 
 let Part2 () =
-    let program = compile code
-    let readInput, writeOutput, getRobbie = robbie white
-    let run = computer program (readInput >> int64) (int >> writeOutput)
-    run () |> ignore
-    let _, _, panel = getRobbie ()
-    display panel
+    let hull = goPaint white |> snd
+    sprintf "%s%s%s" nl (mapAsString hull) nl
