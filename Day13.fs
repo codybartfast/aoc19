@@ -86,13 +86,13 @@ let computer program readInput writeOutput quarters =
 let empty, wall, block, paddle, ball = 0L, 1L, 2L, 3L, 4L
 let left, stay, right = -1L, 0L, 1L
 
-let chooseMove (px, py) (px', py') (bx, by) =
+let chooseMove (bx, by) (bx', by') (px, py) =
     let target =
-        if py' = (by - 1) then px' // if about to hit paddle don't move
-        elif py > py' then px' // if going up then tack ball
-        else if px < px' then px' + 1 else px' - 1 // one ahead of ball
-    if bx < target then right
-    elif target < bx then left
+        if by' = (py - 1) then bx' // if about to hit paddle don't move
+        elif by > by' then bx' // if going up then tack ball
+        else if bx < bx' then bx' + 1 else bx' - 1 // one ahead of ball
+    if px < target then right
+    elif target < px then left
     else stay
 
 let player1 =
