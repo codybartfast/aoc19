@@ -1,13 +1,14 @@
 module Day13
 let day = "13"
 
-open System
 open System.IO
-open System.Text.RegularExpressions
 
-let nl = System.Environment.NewLine
-let print obj= (printfn "%O" obj)
-let tPrint obj = (print obj); obj
+let readLines day =
+    Path.Combine("inputs", "input" + day + ".txt")
+    |> File.ReadAllLines
+let lines = readLines day
+let code = lines.[0]
+let compile (str: string) = str.Split "," |> Array.map int64
 
 let computer program readInput writeOutput quarters =
     let mutable relBase = 0
@@ -79,104 +80,35 @@ let computer program readInput writeOutput quarters =
         run 0
 
     program |> Array.iteri write
-    match quarters with
-    | None -> ()
-    | Some q -> write 0 q
+    match quarters with None -> () | Some qs -> write 0 qs
     runToHalt
 
-let mapToString (map:Map<(int * int), int64>) =
-    // aoc18:20
-    let valueAsString = function
-        | None | Some 0L -> ' '
-        | Some 1L-> '█'
-        | Some 2L -> 'X'
-        | Some 3L -> '_'
-        | Some 4L -> 'o'
-        | u -> failwithf "Unexpected value: %O" u
+let empty, wall, block, paddle, ball = 0L, 1L, 2L, 3L, 4L
+let left, stay, right = -1L, 0L, 1L
 
-    let coords = map |> Map.toList |> List.map fst
-    let minX = coords |> (List.map fst >> List.min)
-    let maxX = coords |> (List.map fst >> List.max)
-    let minY = coords |> (List.map snd >> List.min)
-    let maxY = coords |> (List.map snd >> List.max)
-    let (width, height) = (1 + maxX-minX, 1 + maxY-minY)
-    let (xShift, yShift) = ((+) minX), ((+) minY)
-
-    Array.init (height)  (fun  y ->
-        Array.init (width) (fun x ->
-            map.TryFind (xShift x, yShift y) |> valueAsString))
-    |> Array.map String
-    |> String.concat nl
-
-let readLines day =
-    Path.Combine("inputs", "input" + day + ".txt")
-    |> File.ReadAllLines
-let lines = readLines day
-let code = lines.[0]
-let compile (str: string) = str.Split "," |> Array.map int64
-
-
-let empty = 0L
-let wall = 1L
-let block = 2L
-let paddle = 3L
-let ball = 4L
-
-let left = -1L
-let stay = 0L
-let right = 1L
-
-let paddleRow = 20
-let ballLow = paddleRow - 1
-
-let target (x, y) (x', y') =
-    let goingUp = y > y'
-    let goingRight = x < x'
-    let ball = x'
-
-    if y' = ballLow then x' else
-    
-    if goingUp 
-    then x'
-    else if goingRight then ball + 1 else ball - 1
-
-
-let mutable moves = 0
-let chooseMove prevBall ball paddle =
-    printfn "Move %i: %A" moves (prevBall, ball, paddle)
-    moves <- moves + 1
-    
-    // print (goingUp, goingRight)
-
-    let target = target prevBall ball
-        // if goingUp then ball
-        // elif goingRight  then ball + 1 else ball - 1
-
-    if paddle < target then right elif target < paddle then left else stay
-        
-
-    
+let chooseMove (px, py) (px', py') (bx, by) =
+    let target =
+        if py' = (by - 1) then px' // if about to hit paddle don't move
+        elif py > py' then px' // if going up then tack ball
+        else if px < px' then px' + 1 else px' - 1 // one ahead of ball
+    if bx < target then right
+    elif target < bx then left
+    else stay
 
 let player1 =
-    let mutable prevBall = 15, 16
+    let mutable prevBall = -1, -1
     fun screen ->
-        // screen |> mapToString |> printfn "%s"
-
-
         let tiles = Map.toList screen
         let find kind =
             tiles |> List.filter (snd >> (=) kind) |> List.head |> fst
-        let paddle = find paddle |> fst
-        let ball' = find ball 
+        let paddle = find paddle
+        let ball' = find ball
 
         let ball = prevBall
         prevBall <- ball'
-
         chooseMove ball ball' paddle
-    
-    
 
-let screenApi () =
+let consoleApi () =
     let mutable screen = Map.empty
     let mutable score = -1L
     let mutable received = []
@@ -197,23 +129,19 @@ let screenApi () =
         | _ -> failwith "He's making a list, he's checking it twice"
 
     provideInput, handleOutput, fun () -> (screen, score)
-    
-let Part1 () = 
+
+let playGame quaters =
     let program = compile code
-    let readInput, writeOutput, getScreen = screenApi ()
-    let run = computer program readInput writeOutput None
+    let readInput, writeOutput, getDisplay = consoleApi ()
+    let run = computer program readInput writeOutput quaters
     run () |> ignore
-    getScreen () 
+    getDisplay ()
+
+let Part1 () =
+    playGame None
     |> fst
-    |> Map.toSeq 
-    |> Seq.map snd
-    |> Seq.filter ((=) block) 
+    |> Map.toSeq
+    |> Seq.filter (snd >> (=) block)
     |> Seq.length
 
-let Part2 () =
-    let program = compile code
-    let readInput, writeOutput, getScreen = screenApi ()
-    let run = computer program readInput writeOutput (Some 2L)
-    run () |> ignore
-    let (screen, score) = getScreen () 
-    score
+let Part2 () = playGame (Some 2L) |> snd
