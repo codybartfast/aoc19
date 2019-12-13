@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Ghosts.fs" />
+    <!-- <Compile Include="Ghosts.fs" /> -->
     <!-- <Compile Include="Day00.fs" /> -->
     <!-- <Compile Include="Day01 🌍🚀.fs" /> -->
     <!-- <Compile Include="Day02 🌘.fs" /> -->
@@ -20,7 +20,7 @@
     <!-- <Compile Include="Day10 🔭.fs" /> -->
     <!-- <Compile Include="Day11 👮.fs" /> -->
     <!-- <Compile Include="Day12 亖.fs" /> -->
-    <Compile Include="Day13.fs" />
+    <Compile Include="Day13 🏓.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
