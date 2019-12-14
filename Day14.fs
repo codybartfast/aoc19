@@ -52,7 +52,7 @@ let input = lines
 let parseLine (line: string) =
     let quanity (agent: string) =
         let parts = agent.Split " "
-        (parts.[1], int parts.[0])
+        (parts.[1], int64 parts.[0])
     let parts = line.Split " => "
     let (agents, (product, qty)) =
         ( parts.[0].Split ", " |> Array.map quanity |> List.ofArray,
@@ -64,19 +64,19 @@ let reactions = Array.map parseLine >> Map
 let addInventory inventory (product, quantity) =
     let existingQty =
         match Map.tryFind product inventory with
-        | Some qty -> qty | None -> 0
+        | Some qty -> qty | None -> 0L
     inventory.Add (product, existingQty + quantity)
 
 let rec takeIventory reactions inventory (product, requiredQty) =
     let existingQty =
         match Map.tryFind product inventory with
-        | Some qty -> qty | None -> 0
+        | Some qty -> qty | None -> 0L
     if product = "ORE" || requiredQty <= existingQty
     then inventory.Add (product, existingQty - requiredQty)
     else
         let manRequired = requiredQty - existingQty
         let (procQty, procAgents) = Map.find product reactions
-        let batchs =  ((manRequired - 1) / procQty) + 1
+        let batchs =  ((manRequired - 1L) / procQty) + 1L
         let batchAgents =
             procAgents |> List.map (fun (a, qty) -> (a, qty * batchs))
         let invLessAgents =
@@ -86,8 +86,10 @@ let rec takeIventory reactions inventory (product, requiredQty) =
         takeIventory reactions invWithProduced (product, requiredQty)
 
 let Part1 () =
-    let finalInv = takeIventory (reactions input) Map.empty ("FUEL", 1)
-    finalInv.["ORE"] |> ((*) -1)
+    let finalInv = takeIventory (reactions input) Map.empty ("FUEL", 1L)
+    finalInv.["ORE"] |> ((*) -1L) |> fun n -> n.ToString("n0")
 
 let Part2 () =
-    ()
+    998_536L
+    |> (fun fuel -> takeIventory (reactions input) Map.empty ("FUEL", fuel))
+    |> (fun inv -> inv.["ORE"]) |> ((*) -1L) |> fun n -> n.ToString("n0")
