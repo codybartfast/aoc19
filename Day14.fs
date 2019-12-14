@@ -1,48 +1,7 @@
 module Day14
 let day = "14"
 
-open System
 open System.IO
-open System.Text.RegularExpressions
-
-let nl = System.Environment.NewLine
-let print obj= (printfn "%O" obj)
-let tPrint obj = (print obj); obj
-
-let testLines str = Regex.Split(str, @"\r?\n")
-
-let test1a = testLines @"10 ORE => 10 A
-1 ORE => 1 B
-7 A, 1 B => 1 C
-7 A, 1 C => 1 D
-7 A, 1 D => 1 E
-7 A, 1 E => 1 FUEL"
-
-let test1b = testLines @"9 ORE => 2 A
-8 ORE => 3 B
-7 ORE => 5 C
-3 A, 4 B => 1 AB
-5 B, 7 C => 1 BC
-4 C, 1 A => 1 CA
-2 AB, 3 BC, 4 CA => 1 FUEL"
-
-let test1e = testLines @"171 ORE => 8 CNZTR
-7 ZLQW, 3 BMBT, 9 XCVML, 26 XMNCP, 1 WPTQ, 2 MZWV, 1 RJRHP => 4 PLWSL
-114 ORE => 4 BHXH
-14 VRPVC => 6 BMBT
-6 BHXH, 18 KTJDG, 12 WPTQ, 7 PLWSL, 31 FHTLT, 37 ZDVW => 1 FUEL
-6 WPTQ, 2 BMBT, 8 ZLQW, 18 KTJDG, 1 XMNCP, 6 MZWV, 1 RJRHP => 6 FHTLT
-15 XDBXC, 2 LTCX, 1 VRPVC => 6 ZLQW
-13 WPTQ, 10 LTCX, 3 RJRHP, 14 XMNCP, 2 MZWV, 1 ZLQW => 1 ZDVW
-5 BMBT => 4 WPTQ
-189 ORE => 9 KTJDG
-1 MZWV, 17 XDBXC, 3 XCVML => 2 XMNCP
-12 VRPVC, 27 CNZTR => 2 XDBXC
-15 KTJDG, 12 BHXH => 5 XCVML
-3 BHXH, 2 VRPVC => 7 MZWV
-121 ORE => 7 VRPVC
-7 XCVML => 6 RJRHP
-5 BHXH, 4 VRPVC => 5 LTCX"
 
 let readLines day =
     File.ReadAllLines (Path.Combine("inputs", "input" + day + ".txt"))
@@ -50,46 +9,60 @@ let lines = readLines day
 let input = lines
 
 let parseLine (line: string) =
-    let quanity (agent: string) =
-        let parts = agent.Split " "
-        (parts.[1], int64 parts.[0])
     let parts = line.Split " => "
-    let (agents, (product, qty)) =
-        ( parts.[0].Split ", " |> Array.map quanity |> List.ofArray,
-            parts.[1] |> quanity)
-    product, (qty, agents)
+    let (inputs, (qty, output)) =
+        let qtyChem (qtyChem: string) =
+            let parts = qtyChem.Split " "
+            (int64 parts.[0], parts.[1])
+        let inputs =
+            parts.[0].Split ", " |> Array.map qtyChem |> List.ofArray
+        (inputs, qtyChem parts.[1])
+    output, (qty, inputs)
 
 let reactions = Array.map parseLine >> Map
 
-let addInventory inventory (product, quantity) =
+let addInventory inventory (quantity, output) =
     let existingQty =
-        match Map.tryFind product inventory with
+        match Map.tryFind output inventory with
         | Some qty -> qty | None -> 0L
-    inventory.Add (product, existingQty + quantity)
+    inventory.Add (output, existingQty + quantity)
 
-let rec takeIventory reactions inventory (product, requiredQty) =
+let rec takeIventory reactions inventory (qty, output) =
+    let manufacture (qty, output) =
+        let (reactQty, reactInputs) = Map.find output reactions
+        let reactCount =  ((qty - 1L) / reactQty) + 1L
+        let batchInputs =
+            reactInputs |> List.map (fun (qty, a) -> (qty * reactCount, a))
+        let inventory =
+            (inventory, batchInputs) ||> List.fold (takeIventory reactions)
+        addInventory inventory (reactCount * reactQty, output)
+
     let existingQty =
-        match Map.tryFind product inventory with
+        match Map.tryFind output inventory with
         | Some qty -> qty | None -> 0L
-    if product = "ORE" || requiredQty <= existingQty
-    then inventory.Add (product, existingQty - requiredQty)
+    if output = "ORE" || qty <= existingQty then
+        // reduce inventory
+        inventory.Add (output, existingQty - qty)
     else
-        let manRequired = requiredQty - existingQty
-        let (procQty, procAgents) = Map.find product reactions
-        let batchs =  ((manRequired - 1L) / procQty) + 1L
-        let batchAgents =
-            procAgents |> List.map (fun (a, qty) -> (a, qty * batchs))
-        let invLessAgents =
-            List.fold (takeIventory reactions) inventory batchAgents
-        let produced = batchs * procQty
-        let invWithProduced = addInventory invLessAgents (product, produced)
-        takeIventory reactions invWithProduced (product, requiredQty)
+        let inventory = manufacture (qty - existingQty, output)
+        takeIventory reactions inventory (qty, output)
 
-let Part1 () =
-    let finalInv = takeIventory (reactions input) Map.empty ("FUEL", 1L)
-    finalInv.["ORE"] |> ((*) -1L) |> fun n -> n.ToString("n0")
+let oreUsed fuel =
+    takeIventory (reactions input) Map.empty (fuel, "FUEL")
+    |> Map.find  "ORE"
+    |> ((*) -1L)
 
-let Part2 () =
-    998_536L
-    |> (fun fuel -> takeIventory (reactions input) Map.empty ("FUEL", fuel))
-    |> (fun inv -> inv.["ORE"]) |> ((*) -1L) |> fun n -> n.ToString("n0")
+let binarySearch tooFar =
+    let rec search lower upper =
+        if not (tooFar upper) then
+            search lower (2L * upper)
+        elif lower + 1L = upper then
+            lower
+        else
+            let mid = (lower + upper) / 2L
+            if tooFar mid then search lower mid else search mid upper
+    search 0L 1L
+
+let Part1 () = oreUsed 1L
+
+let Part2 () = binarySearch (oreUsed >> ((<) 1_000_000_000_000L))
