@@ -21,7 +21,7 @@
     <!-- <Compile Include="Day11 👮.fs" /> -->
     <!-- <Compile Include="Day12 亖.fs" /> -->
     <!-- <Compile Include="Day13 🏓.fs" /> -->
-    <Compile Include="Day14.fs" />
+    <Compile Include="Day14 🧪.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
