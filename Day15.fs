@@ -245,7 +245,9 @@ let rec explore sendInstr map pos =
 let rec findRoute map  =
     let rec allRoutes pos dir count =
         match Map.find pos map with
-        | 'O' -> Seq.singleton (Some count)
+        | 'O' -> 
+            print pos
+            Seq.singleton (Some count)
         | '#' -> Seq.singleton None
         | '.' ->
             let reverse = function 
@@ -261,6 +263,24 @@ let rec findRoute map  =
     |> Seq.choose id
     |> Seq.head
         
+let rec dispersion map  =
+    let rec allRoutes pos dir count =
+        match Map.find pos map with
+        | '#' -> Seq.singleton (Some (count - 1))
+        | '.' | 'O' ->
+            let reverse = function 
+                | -1 -> -1 | 1 -> 2 | 2 -> 1 | 3 -> 4 | 4 -> 3
+                | u -> failwithf "is this a direction?: %i" u
+            let cameFrom = reverse dir
+            [1; 2; 3; 4]
+            |> Seq.filter ((<>) cameFrom)
+            |> Seq.collect (fun dir ->
+                allRoutes (step pos dir) dir (count + 1))
+        | u -> failwithf "I'm standing on this... %A" u
+    allRoutes (-16, -20) -1 0
+    |> Seq.choose id
+    |> Seq.max
+
         
 
 
@@ -279,6 +299,7 @@ let Part1 () =
     print (mapToString map (Int32.MinValue, Int32.MinValue))
     let map = Map.add (0,0) '.'map
     print (findRoute map)
+    printfn "%A" (dispersion map)
     Console.ReadKey()
 
 
