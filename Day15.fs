@@ -1,13 +1,9 @@
 module Day15
 let day = "15"
 
-open System
-open System.IO
-open System.Text.RegularExpressions
+#nowarn "0025"
 
-let nl = System.Environment.NewLine
-let print obj= (printfn "%O" obj)
-let tPrint obj = (print obj); obj
+open System.IO
 
 let readLines day =
     Path.Combine("inputs", "input" + day + ".txt")
@@ -15,34 +11,6 @@ let readLines day =
 let lines = readLines day
 let code = lines.[0]
 let compile (str: string) = str.Split "," |> Array.map int64
-
-let mapToString (map:Map<(int * int), char>) droid =
-    // aoc18:20
-    let valueAsChar = function
-        | None -> '?'
-        | Some chr -> chr
-        // | u -> failwithf "Unexpected value: %O" u
-
-    let coords = map |> Map.toList |> List.map fst
-    let minX = coords |> (List.map fst >> List.min)
-    let maxX = coords |> (List.map fst >> List.max)
-    let minY = coords |> (List.map snd >> List.min)
-    let maxY = coords |> (List.map snd >> List.max)
-    let (width, height) = (1 + maxX-minX, 1 + maxY-minY)
-    let (xShift, yShift) = ((+) minX), ((+) minY)
-
-    Array.init (height)  (fun  y ->
-        Array.init (width) (fun x ->
-            let x, y = xShift x, yShift y
-            if (x, y) = droid
-            then 'D'
-            // elif (x, y) = (0, 0)
-            // then 'X'
-            // elif (x, y) = oxygen
-            // then 'O'
-            else map.TryFind (x, y) |> valueAsChar))
-    |> Array.map String
-    |> String.concat nl
 
 let computer program readInput writeOutput =
     let mutable wroteOutput = false
@@ -123,185 +91,98 @@ let computer program readInput writeOutput =
         wroteOutput <- false
         run ptrOnPause
 
-    let runToHalt () =
-        let rec run ptr =
-            if halt ptr then false else run ((operation ptr) ptr)
-        run 0
+    program |> Array.iteri write
 
-    program |> Array.iteri write    
-    
     runToOutput
 
-let droidApi () =
+let controlInverter () =
     let mutable instr = -1
     let mutable resp = -1
 
     let provideInput = fun () -> int64 instr
-    let handleOutput out = resp <- int out 
-
+    let handleOutput out = resp <- int out
     let sendInstr run instruction =
         instr <- instruction
         run () |> ignore
         resp
-    
+
     provideInput, handleOutput, sendInstr
 
-let step (x, y) dir =
-    match dir with
-    | 1 -> (x, y - 1)
-    | 2 -> (x, y + 1)
-    | 3 -> (x - 1, y)
-    | 4 -> (x + 1, y)
-    | _ -> failwith "jump?" 
+type Location = Wall | Clear | Origin | Oxygen
+type Direction = North | South | West | East
 
-let mapWall sendInstr map pos dir =
-    // if sendInstr dir <> 0 then failwith "expected a wall"
-    
-    let right = function
-        1 -> 4 | 2 -> 3 | 3 -> 1 | 4 -> 2 | _ -> failwith "really?"
-    let left = function
-        1 -> 3 | 2 -> 4 | 3 -> 2 | 4 -> 1 | _ -> failwith "really?"
-    
+let computerApi sendInst =
+    fun command ->
+        let instr =
+            match command with
+            North -> 1 | South -> 2 | West -> 3 | East -> 4
+        match sendInst instr with
+        | 0 -> Wall
+        | 1 -> Clear
+        | 2 -> Oxygen
+
+let nextPosition (x, y) dir =
+    match dir with
+    | North -> (x, y - 1)
+    | South -> (x, y + 1)
+    | West -> (x - 1, y)
+    | East -> (x + 1, y)
+
+let right = function
+    | North -> East | South -> West | West -> North | East -> South
+let left = function
+    | North -> West | South -> East | West -> South | East -> North
+let reverse = function
+    | North -> South | South -> North | West -> East | East -> West
+
+let mapWall sendCommand map pos dir =
     let rec move map previous =
         let pos, dir = previous
-        let resp = sendInstr dir
-        let target = step pos dir        
+        let resp = sendCommand dir
+        let target = nextPosition pos dir
         match resp with
-        | 0 -> 
-            let newDir = right dir
-            move
-                (Map.add target '#' map)
-                (pos, newDir)
-        | 1 ->
-            let newDir = left dir
-            let map =
-                if map.ContainsKey target
-                then map
-                else Map.add target '.' map
-            move map (target, newDir)
-        | 2 -> 
-            if map.ContainsKey target then
-                map
-            else
-                let newDir = left dir
-                let map = Map.add target 'O' map
-                // print (mapToString map pos)
-                move
-                    map
-                    (target, newDir)            
-        | _ ->  failwith "time to reboot?"
-
+        | Wall -> move (Map.add target Wall map) (pos, right dir)
+        | Clear ->
+            match map.TryFind target with
+            | Some Origin -> map
+            | _ -> move (Map.add target Clear map) (target, left dir)
+        | Oxygen -> move (Map.add target Oxygen map) (target, left dir)
     move map (pos, dir)
 
-let rec explore sendInstr map pos =
-    Console.Clear()
-    print "-------------------------------------------------------------"
-    printfn "Position: %A" pos
-    print (mapToString map pos)
-
-    let target (x, y) = function
-        | 1 -> (x, y - 1)
-        | 2 -> (x, y + 1)
-        | 3 -> (x - 1, y)
-        | 4 -> (x + 1, y)
-        | _ -> failwith "jump?" 
-    
-    let right = function
-        1 -> 4 | 2 -> 3 | 3 -> 1 | 4 -> 2 | _ -> failwith "really?"
-    let left = function
-        1 -> 3 | 2 -> 4 | 3 -> 2 | 4 -> 1 | _ -> failwith "really?"
-
-    let info = Console.ReadKey(true)
-    let dir = 
-        match info.Key with
-        | ConsoleKey.UpArrow -> 1
-        | ConsoleKey.DownArrow -> 2
-        | ConsoleKey.RightArrow -> 4
-        | ConsoleKey.LeftArrow -> 3
-        | _ -> -1    
-    
-    if dir = -1 then explore sendInstr map pos
-    printfn "key: %A" dir
-    let target = target pos dir
-
-    let resp = sendInstr dir
-
-    let map, pos = 
-        match resp with
-        | 0 -> (Map.add target '#' map), pos
-        | 1 -> 
-            let map =
-                if map.ContainsKey target
-                then map
-                else Map.add target '.' map
-            map, target
-        | 2 -> (Map.add target 'O' map), target
-        | _ -> failwith "time to roboot?"
-
-    printfn "Response: %i, Position %A, Target %A" resp pos target
-    
-    explore sendInstr map pos
-
-let rec findRoute map  =
-    let rec allRoutes pos dir count =
+let distances map target startPosition =
+    let rec distances pos dir dist =
         match Map.find pos map with
-        | 'O' -> 
-            print pos
-            Seq.singleton (Some count)
-        | '#' -> Seq.singleton None
-        | '.' ->
-            let reverse = function 
-                | -1 -> -1 | 1 -> 2 | 2 -> 1 | 3 -> 4 | 4 -> 3
-                | u -> failwithf "is this a direction?: %i" u
+        | loc when loc = target ->  Seq.singleton (Some dist)
+        | Wall -> Seq.singleton None
+        | Clear | Oxygen | Origin ->
             let cameFrom = reverse dir
-            [1; 2; 3; 4]
+            [North; South; West; East]
             |> Seq.filter ((<>) cameFrom)
             |> Seq.collect (fun dir ->
-                allRoutes (step pos dir) dir (count + 1))
-        | u -> failwithf "I'm standing on this... %A" u
-    allRoutes (0, 0) -1 0
-    |> Seq.choose id
-    |> Seq.head
-        
-let rec dispersion map  =
-    let rec allRoutes pos dir count =
-        match Map.find pos map with
-        | '#' -> Seq.singleton (Some (count - 1))
-        | '.' | 'O' ->
-            let reverse = function 
-                | -1 -> -1 | 1 -> 2 | 2 -> 1 | 3 -> 4 | 4 -> 3
-                | u -> failwithf "is this a direction?: %i" u
-            let cameFrom = reverse dir
-            [1; 2; 3; 4]
-            |> Seq.filter ((<>) cameFrom)
-            |> Seq.collect (fun dir ->
-                allRoutes (step pos dir) dir (count + 1))
-        | u -> failwithf "I'm standing on this... %A" u
-    allRoutes (-16, -20) -1 0
-    |> Seq.choose id
-    |> Seq.max
+                distances (nextPosition pos dir) dir (dist + 1))
+    distances startPosition North 0
 
-        
-
-
-
-
+let sectionMap =
+    let program = compile code
+    let readInput, writeOutput, sendInstr = controlInverter ()
+    let run = computer program readInput writeOutput
+    let sendCommand = computerApi (sendInstr run)
+    let map = Map.add (0,0) Origin Map.empty
+    // North works in this instance but generally needs to be
+    // coming from a direction with a wall
+    mapWall sendCommand map (0, 0) North
 
 let Part1 () =
-    let program = compile code
-    let readInput, writeOutput, sendInstr = droidApi ()
-    let run = computer program readInput writeOutput
-    let sendInstr = sendInstr run
-
-    let dir = 1
-    let map = Map.add (0,0) 'X' Map.empty
-    let map = mapWall sendInstr map (0, 0) dir
-    print (mapToString map (Int32.MinValue, Int32.MinValue))
-    let map = Map.add (0,0) '.'map
-    print (findRoute map)
-    printfn "%A" (dispersion map)
-    Console.ReadKey()
-
+    distances sectionMap Oxygen (0, 0)
+    |> Seq.pick id
 
 let Part2 () =
-    ()
+    let oxygenLocation =
+        sectionMap
+        |> Map.toSeq
+        |> Seq.find (snd >> ((=) Oxygen))
+        |> fst
+    distances sectionMap Wall oxygenLocation
+    |> Seq.choose id
+    |> Seq.max
+    |> ((+) -1)
