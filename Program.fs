@@ -1,4 +1,4 @@
-﻿open Day15 // file needs to be included in AdventOfCode2019.fsproj
+﻿open Day16 // file needs to be included in AdventOfCode2019.fsproj
 
 let time title fn =
     let sw = System.Diagnostics.Stopwatch ()
@@ -10,7 +10,6 @@ let time title fn =
 
 [<EntryPoint>]
 let main _ =
-    printfn "Line count: %i" (lines.Length)
     time "Part 1" Part1
     time "Part 2" Part2
     0

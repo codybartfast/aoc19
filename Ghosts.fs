@@ -33,7 +33,7 @@ let rec permutations list =
 
 let mapToString (map:Map<(int * int), int64>) =
     // aoc18:20
-    let valueAsString = function
+    let valueAsChar = function
         | None | Some 0L -> ' '
         | Some 1L -> '█'
         | u -> failwithf "Unexpected value: %O" u
@@ -48,7 +48,7 @@ let mapToString (map:Map<(int * int), int64>) =
 
     Array.init (height)  (fun  y ->
         Array.init (width) (fun x ->
-            map.TryFind (xShift x, yShift y) |> valueAsString))
+            map.TryFind (xShift x, yShift y) |> valueAsChar))
     |> Array.map String
     |> String.concat nl
 
@@ -118,4 +118,3 @@ type Thingy = Grid<char>
 let textGrid =
     Array.map (fun (s: string) -> s.ToCharArray())
     >> Thingy
-
