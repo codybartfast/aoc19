@@ -35,10 +35,12 @@ let pattern col row =
 
 let value (signal: int[]) row col = signal.[col] * pattern col row
 
+let single = abs >> (fun n -> n % 10)
+
 let rowValue (signal: int[]) row =
     Array.init (signal.Length) id
     |> Array.sumBy (value signal row)
-    |> abs |> (fun n -> n % 10)
+    |> single
 
 let phase (signal: int[]) =
     Array.init (signal.Length) id
@@ -58,10 +60,27 @@ let first8 output =
 let repeat n array = [|1 .. n|] |> Array.collect (fun i -> array)
 
 let Part1 () =
-    let signal = (parse input)
-    repeatFn phase 100 signal |> first8
+    let input = (parse input)
+    // repeatFn phase 100 signal |> first8
+    (phase input).[input.Length / 2 ..]
    
+let lastHalf (input: int[]) (output: int[]) =    
+    let len = input.Length
+    output.[len - 1] <- input.[len - 1]
+
+    seq{len - 2 .. -1 .. len - (len / 2)}
+    |> Seq.iter (fun i -> 
+        output.[i] <-  output.[i + 1] + input.[i] |> single)
+
 
 let Part2 () =
-    let signal = (parse input)
-    repeatFn phase 100 signal |> first8
+    let input = (parse input)    
+    // let input = repeat 100 input
+
+
+    let output= Array.zeroCreate input.Length 
+    lastHalf input output
+    output.[output.Length / 2 ..]
+
+    // seq{ 10 .. -1 .. 1 }
+    
