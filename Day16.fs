@@ -6,7 +6,7 @@ open System.IO
 open System.Text.RegularExpressions
 
 let nl = System.Environment.NewLine
-let print obj= (printfn "%O" obj)
+let print obj= (printfn "%A" obj)
 let tPrint obj = (print obj); obj
 
 let readLines day =
@@ -14,7 +14,7 @@ let readLines day =
 let lines = readLines day
 
 let parse (str: string) =
-    str.ToCharArray() |> Array.map (int >> ((+) -48)) |> List.ofArray
+    str.ToCharArray() |> Array.map (int >> ((+) -48)) 
 
 let test1a = "12345678"
 let test1b = "80871224585914546619083218645595"
@@ -27,40 +27,41 @@ let test2c = "03081770884921959731165446850517"
 
 let input = lines.[0]
 
-let seed = [0; 1; 0; -1]
-let patterns seed len =
-    let rec repeat i = seq { yield i; yield! repeat i}
-    let rec repeatSeq sq = seq{ yield! sq; yield! repeatSeq sq}
-    let stretch sq n = sq |> Seq.collect (repeat >> Seq.take n)
-    [1 .. len]
-    |> Seq.map
-        ((stretch seed) >> repeatSeq >> Seq.tail >> (Seq.take len) >> List.ofSeq)
-    |> List.ofSeq
+let seeds = [0; 1; 0; -1]
 
-let apply signal pattern =
-    (List.map2 (*) signal pattern)
-    |> (List.reduce (+) >> abs >> (fun n -> n % 10))
+let pattern col row =
+    match ((col + 1) / (row + 1)) % 4 with
+    | 0 -> 0 | 1 -> 1 | 2 -> 0  | 3 -> -1 
 
-let phase signal =
-    patterns seed (List.length signal)
-    |> List.map (apply signal)
+let value (signal: int[]) row col = signal.[col] * pattern col row
+
+let rowValue (signal: int[]) row =
+    Array.init (signal.Length) id
+    |> Array.sumBy (value signal row)
+    |> abs |> (fun n -> n % 10)
+
+let phase (signal: int[]) =
+    Array.init (signal.Length) id
+    |> Array.map (fun row -> rowValue signal row)
 
 let rec repeatFn fn n input =
     match n with
     | 0 -> input
     | _ -> repeatFn fn (n - 1) (fn input)
 
-let first8 signal =
-    signal
-    |> List.take 8
-    |> List.map (fun i -> i.ToString())
+let first8 output =
+    output
+    |> Seq.take 8
+    |> Seq.map (fun i -> i.ToString())
     |> (String.concat "")
 
-let repeatList n l = [1 .. n] |> List.collect (fun i -> l)
+let repeat n array = [|1 .. n|] |> Array.collect (fun i -> array)
 
 let Part1 () =
-    let signal = parse input
+    let signal = (parse input)
     repeatFn phase 100 signal |> first8
+   
 
 let Part2 () =
-    ()
+    let signal = (parse input)
+    repeatFn phase 100 signal |> first8
