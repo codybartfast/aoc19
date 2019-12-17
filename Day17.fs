@@ -1,13 +1,10 @@
 module Day17
 let day = "17"
 
+#nowarn "0025"
+
 open System
 open System.IO
-open System.Text.RegularExpressions
-
-let nl = Environment.NewLine
-let print obj= (printfn "%O" obj)
-let tPrint obj = (print obj); obj
 
 let readLines day =
     Path.Combine("inputs", "input" + day + ".txt")
@@ -17,12 +14,6 @@ let code = lines.[0]
 let compile (str: string) = str.Split "," |> Array.map int64
 
 let computer program readInput writeOutput mode =
-    let mutable wroteOutput = false
-    let mutable ptrOnPause = 0
-    let mutable running = true
-
-    let writeOutput value = wroteOutput <- true; writeOutput value
-
     let mutable relBase = 0
 
     let memKB = 1_024
@@ -86,15 +77,6 @@ let computer program readInput writeOutput mode =
         | 9 -> shiftRB
         | u -> failwithf "Unexpected opCode: %i (ptr: %i)" u ptr
 
-    let runToOutput () =
-        let rec run ptr =
-            if not running then false
-            elif wroteOutput then ptrOnPause <- ptr;  true
-            elif halt ptr then running <- false; false
-            else run ((operation ptr) ptr)
-        wroteOutput <- false
-        run ptrOnPause
-
     let runToHalt () =
         let rec run ptr =
             if halt ptr then false else run ((operation ptr) ptr)
@@ -106,104 +88,76 @@ let computer program readInput writeOutput mode =
     runToHalt
 
 type Grid<'a when 'a : equality>(jagged: 'a[][]) =
-    // aoc15:18
     let data = jagged
     let maxX = (Array.length (data.[0])) - 1
     let maxY = (Array.length data) - 1
-
-    let mutable formatItem = (fun x -> x.ToString())
 
     member _.Item
         with get(x, y) = data.[y].[x]
         and set(x, y) v = data.[y].[x] <- v
 
-    member _.FormatItem with get() = formatItem and set(f) = formatItem <- f
-    member this.AsText(x, y) = this.FormatItem (this.Item(x, y))
-
-    member _.Row with get(y) = data.[y]
-    member this.FormatRow = Array.map this.FormatItem >> (String.concat "")
-    member this.AsText(y) = this.FormatRow (this.Row(y))
-
-    member this.FormatGrid = Array.map this.FormatRow >> (String.concat nl)
-    member this.AsText() = this.FormatGrid data
-    override this.ToString() = this.AsText()
-    member this.Display() = printfn "%s" (this.AsText())
-    member this.TeeDisplay() = this.Display(); this
-
-    member this.InBounds(x, y) = x >= 0 && x <= maxX && y >=0 && y <= maxY
-
-    // member this.Copy() = this.Transform (fun g x y -> g.[x,y])
+    member _.InBounds(x, y) = x >= 0 && x <= maxX && y >=0 && y <= maxY
 
     member _.Coords() =
         seq{ for y in 0 .. maxY do
                 for x in 0 .. maxX do
                      yield (x, y) }
 
-    member this.FilterSeq(v) =
+    member this.Filter(pred) =
         this.Coords ()
-        |> Seq.filter (fun (x, y) -> this.[x, y] = v)
+        |> Seq.filter (fun (x, y) -> (pred this.[x, y]))
 
-    member this.NHood(x, y) =
-        [| for x in (x - 1)..(x + 1) do
-            for y in (y - 1)..(y + 1) do
-                let inb = this.InBounds (x, y) //////////////////////////
-                if this.InBounds (x, y)
-                then Some this.[x,y]
-                else None |]
+    member this.Bordering(x, y) =
+        [| this.TryGet (x, y - 1);
+           this.TryGet (x + 1, y);
+           this.TryGet (x, y + 1);
+           this.TryGet (x - 1, y); |]
 
-    member this.Adjacent(x, y) =
-        let nhood = this.NHood (x, y)
-        nhood.[4] <- None
-        nhood
+    member this.Flatern() =
+        this.Coords ()
+        |> Seq.map (fun (x, y) -> (x, y), this.[x, y])
 
-    member this.Transform(generate: Grid<'a> -> int -> int -> 'b) : Grid<'b>=
-        [| for y in 0 .. maxY do
-            [| for x in 0 .. maxX do
-                generate this x y |] |]
-        |> Grid<'b>
-
-    member _.Flattern() = Array.collect id data
-    member _.Corners() = [| (0, 0); (0, maxY); (maxX, maxY); (maxX, 0) |]
-    member this.Get((x, y)) = this.[x, y] ////////////////////   ////////
+    member this.Get((x, y)) = this.[x, y]
     member this.Set((x, y)) value = this.[x, y] <- value
     member this.TryGet((x, y)) =
         match this.InBounds(x, y) with
         | true -> Some (this.Get((x, y)))
         | false -> None
 
-type Thingy = Grid<char>
+type Scaffold = Grid<char>
 
-let textGrid =
-    Array.map (fun (s: string) -> s.ToCharArray())
-    >> Thingy
-
-let cameraApi () =
+let cleanerApi rules =
+    let mutable rules = rules
     let mutable received = []
-
-    let input () = failwith "Uh well, um, ... zero?"
+    let input () =
+        let head::tail = rules
+        rules <- tail
+        head
     let output out = received <- out::received
-
     input, output, (fun () -> List.rev received)
 
-let readScaffold scaffold =
-    scaffold ()
-    |> List.map char
-    |> Array.ofList
-    |> String
+let scaffoldGrid =
+    List.map char
+    >> Array.ofList
+    >> String
+    >> (fun str -> str.Trim().Split "\n")
+    >> Array.map (fun str -> str.ToCharArray())
+    >> Scaffold
+
+let scaffold =
+    let program = compile code
+    let input, output, received = cleanerApi []
+    let run = computer program input output 1L
+    run () |> ignore
+    scaffoldGrid (received ())
 
 type Turn = Left | Right | DeadEnd
 type Direction = North | South | West | East
-let right = function
-    | North -> East | South -> West | West -> North | East -> South
-let left = function
-    | North -> West | South -> East | West -> South | East -> North
 
-let map (grid: Thingy) =
+let findPath (grid: Scaffold) =
     let start =
-        grid.Coords ()
-        |> Seq.map (fun coord -> (coord, grid.Get coord))
-        |> Seq.find (fun (_, char) -> char = '^')
-        |> fst
+        grid.Filter ((=) '^')
+        |> Seq.head
 
     let next (x, y) dir =
         match dir with
@@ -212,13 +166,17 @@ let map (grid: Thingy) =
         | West -> (x - 1, y)
         | East -> (x + 1, y)
 
-    let rec walk (grid: Thingy) pos dir =
+    let rec walk pos dir =
         let next = next pos dir
         match grid.TryGet(next) with
-        | Some '#' -> walk grid next dir
-        | _ -> pos        
+        | Some '#' -> walk next dir
+        | _ -> pos
 
-    let rec turnAndGo (grid: Thingy) path pos dir =
+    let rec turnAndWalk path pos dir =
+        let right = function
+            | North -> East | South -> West | West -> North | East -> South
+        let left = function
+            | North -> West | South -> East | West -> South | East -> North
         let onLeft = grid.TryGet (left dir |> (next pos))
         let onRight = grid.TryGet (right dir |> (next pos))
         let turn =
@@ -228,89 +186,71 @@ let map (grid: Thingy) =
             | _ -> DeadEnd
         if turn = DeadEnd then List.rev path else
             let dir' = match turn with Left -> left dir | Right -> right dir
-            let pos' = walk grid pos dir'
-            let manhatten (x, y) (x', y') = abs (x' - x) + abs (y' - y)
-            let dist = manhatten pos pos'
-            let turn = match turn with Left -> "L" | Right -> "R"
-            let instr = sprintf "%s,%i" turn dist
-            turnAndGo grid (instr::path) pos' dir'
+            let pos' = walk pos dir'
+            let dst = abs (fst pos' - fst pos) + abs (snd pos' - snd pos)
+            let trn = match turn with Left -> "L" | Right -> "R"
+            let instr = sprintf "%s,%i" trn dst
+            turnAndWalk (instr::path) pos' dir'
 
-    turnAndGo grid [] start North
-
-       
+    turnAndWalk [] start North
 
 
-let mutable path = []
+let routines path =
+    let matchGroups groups path =
+        let rec useGroup group path =
+            match group, path with
+            | [], _ -> Some path
+            | _, [] -> None
+            | hg::tg, hp::tp when hg = hp -> useGroup tg tp
+            | _ -> None
+        let rec matchGroups' path lbls =
+            groups
+            |> List.map (fun (label, grp) -> label, useGroup grp path)
+            |> List.tryFind (snd >> ((<>) None))
+            |> function
+                | None -> lbls, path
+                | Some (lbl, Some []) -> (lbl::lbls), []
+                | Some (lbl, Some path) -> matchGroups' path (lbl::lbls)
+        let revPath, remaining = matchGroups' path []
+        (List.rev revPath, remaining)
 
+    let _, groups =
+        seq{ for a in 1 .. 6 do
+                let grpA = ("A", List.take a path)
+                let (_, path) = matchGroups [grpA] path
+                for b in 1 .. (min 6 path.Length) do
+                    let grpB = ("B", List.take b path)
+                    let (_, path) = matchGroups [grpA; grpB] path
+                    for c in 1 .. (min 6 path.Length) do
+                        let grpC = ("C", List.take c path)
+                        (matchGroups [grpA; grpB; grpC] path),
+                            [grpA; grpB; grpC] }
+        |> Seq.find (fst >> snd >> ((=) []))
 
-let Part1 () =
-    let program = compile code
-    let input, output, scaffold = cameraApi ()
-    let run = computer program input output 1L
-    run () |> ignore
-    let scaffold = readScaffold scaffold
-    let grid = textGrid (scaffold.TrimEnd().Split "\n")
-    path <- map grid
-    (grid.Transform (fun grid x y ->
-        let nHood = grid.NHood (x, y)
-        match nHood.[4] with
-        | None -> 0
-        | Some '.' -> 0
-        | Some '^' | Some '>' | Some 'v' | Some '<' -> 0
-        | Some '#' ->
-            let isIntersection =
-                [nHood.[1]; nHood.[3]; nHood.[5]; nHood.[7] ]
-                |> List.forall (fun n -> n = Some '#')
-            if isIntersection then x * y else 0)
-    ).Flattern ()
-    |> Array.sum
+    let main = matchGroups groups path |> fst
+    main::(groups |> List.map snd)
+    |> List.map (String.concat ",")
 
-let rescueApi rules =
-    let mutable rules = rules
-    let mutable received = []
-
-    let input () =
-        let head::tail = rules
-        rules <- tail
-        // printf "Input: "; print head
-        head
-    let output out = received <- out::received
-
-    input, output, (fun () -> received)
-
-let intRules (main, a, b, c, feed) =
-    [main; a; b; c; feed; ""]
+let intRoutines [main; a; b; c] =
+    [main; a; b; c; "n"; ""]
     |> String.concat "\n"
-    |> (fun (str: string) -> (tPrint str).ToCharArray())
+    |> (fun (str: string) -> str.ToCharArray())
     |> List.ofArray
     |> List.map int64
 
-let demoRules =
-    let main = "A,B,C,B,A,C"
-    let a = "R,8,R,8"
-    let b = "R,4,R,4,R,8"
-    let c = "L,6,L,2"
-    let feed = "n"
-    (main, a, b, c, feed)
-
-let rules =                     //
-    let main = "A,B,A,B,C,A,B,C,A,C"
-    let a = "R,6,L,10,R,8"
-    let b = "R,8,R,12,L,8,L,8"
-    let c = "L,10,R,6,R,6,L,8"
-    let feed = "n"
-    (main, a, b, c, feed)
-
+let Part1 () =
+    scaffold.Flatern()
+    |> Seq.filter (fun ((x, y), value) ->
+        (value =  '#') &&
+            (scaffold.Bordering(x, y) =
+                [|Some '#'; Some '#'; Some '#'; Some '#'|]))
+    |> Seq.sumBy (fst >> (fun (x, y) -> x * y))
 
 let Part2 () =
+    let path = findPath scaffold
+    let intRoutines = intRoutines (routines path)
     let program = compile code
-    let intRules = intRules rules
-    let input, output, received = rescueApi intRules
+    let input, output, received = cleanerApi intRoutines
     let run = computer program input output 2L
     run () |> ignore
-
-    // print (String.concat "," path)
-
-    received ()
-    |> List.filter (fun n -> n > 255L)
-
+    received () |> List.max |> int
