@@ -164,8 +164,12 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
 
     member _.Flattern() = Array.collect id data
     member _.Corners() = [| (0, 0); (0, maxY); (maxX, maxY); (maxX, 0) |]
-    member this.Get(x, y) value = this.[x, y]
-    member this.Set(x, y) value = this.[x, y] <- value
+    member this.Get((x, y)) = this.[x, y] ////////////////////   ////////
+    member this.Set((x, y)) value = this.[x, y] <- value
+    member this.TryGet((x, y)) =
+        match this.InBounds(x, y) with
+        | true -> Some (this.Get((x, y)))
+        | false -> None
 
 type Thingy = Grid<char>
 
@@ -187,14 +191,66 @@ let readScaffold scaffold =
     |> Array.ofList
     |> String
 
+type Turn = Left | Right | DeadEnd
+type Direction = North | South | West | East
+let right = function
+    | North -> East | South -> West | West -> North | East -> South
+let left = function
+    | North -> West | South -> East | West -> South | East -> North
+
+let map (grid: Thingy) =
+    let start =
+        grid.Coords ()
+        |> Seq.map (fun coord -> (coord, grid.Get coord))
+        |> Seq.find (fun (_, char) -> char = '^')
+        |> fst
+
+    let next (x, y) dir =
+        match dir with
+        | North -> (x, y - 1)
+        | South -> (x, y + 1)
+        | West -> (x - 1, y)
+        | East -> (x + 1, y)
+
+    let rec walk (grid: Thingy) pos dir =
+        let next = next pos dir
+        match grid.TryGet(next) with
+        | Some '#' -> walk grid next dir
+        | _ -> pos        
+
+    let rec turnAndGo (grid: Thingy) path pos dir =
+        let onLeft = grid.TryGet (left dir |> (next pos))
+        let onRight = grid.TryGet (right dir |> (next pos))
+        let turn =
+            match onLeft, onRight with
+            | Some '#', _ -> Left
+            | _, Some '#' -> Right
+            | _ -> DeadEnd
+        if turn = DeadEnd then List.rev path else
+            let dir' = match turn with Left -> left dir | Right -> right dir
+            let pos' = walk grid pos dir'
+            let manhatten (x, y) (x', y') = abs (x' - x) + abs (y' - y)
+            let dist = manhatten pos pos'
+            let turn = match turn with Left -> "L" | Right -> "R"
+            let instr = sprintf "%s,%i" turn dist
+            turnAndGo grid (instr::path) pos' dir'
+
+    turnAndGo grid [] start North
+
+       
+
+
+let mutable path = []
+
+
 let Part1 () =
     let program = compile code
     let input, output, scaffold = cameraApi ()
     let run = computer program input output 1L
     run () |> ignore
     let scaffold = readScaffold scaffold
-    // print scaffold
     let grid = textGrid (scaffold.TrimEnd().Split "\n")
+    path <- map grid
     (grid.Transform (fun grid x y ->
         let nHood = grid.NHood (x, y)
         match nHood.[4] with
@@ -209,5 +265,52 @@ let Part1 () =
     ).Flattern ()
     |> Array.sum
 
+let rescueApi rules =
+    let mutable rules = rules
+    let mutable received = []
+
+    let input () =
+        let head::tail = rules
+        rules <- tail
+        // printf "Input: "; print head
+        head
+    let output out = received <- out::received
+
+    input, output, (fun () -> received)
+
+let intRules (main, a, b, c, feed) =
+    [main; a; b; c; feed; ""]
+    |> String.concat "\n"
+    |> (fun (str: string) -> (tPrint str).ToCharArray())
+    |> List.ofArray
+    |> List.map int64
+
+let demoRules =
+    let main = "A,B,C,B,A,C"
+    let a = "R,8,R,8"
+    let b = "R,4,R,4,R,8"
+    let c = "L,6,L,2"
+    let feed = "n"
+    (main, a, b, c, feed)
+
+let rules =                     //
+    let main = "A,B,A,B,C,A,B,C,A,C"
+    let a = "R,6,L,10,R,8"
+    let b = "R,8,R,12,L,8,L,8"
+    let c = "L,10,R,6,R,6,L,8"
+    let feed = "n"
+    (main, a, b, c, feed)
+
+
 let Part2 () =
-    ()
+    let program = compile code
+    let intRules = intRules rules
+    let input, output, received = rescueApi intRules
+    let run = computer program input output 2L
+    run () |> ignore
+
+    // print (String.concat "," path)
+
+    received ()
+    |> List.filter (fun n -> n > 255L)
+
