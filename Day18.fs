@@ -19,7 +19,7 @@ let test1d = toLines @"########################
 ########################"
 
 type Grid<'a when 'a : equality>(jagged: 'a[][]) =
-    // aoc15:18
+    // aoc15:18    
     let data = jagged
     let maxX = (Array.length (data.[0])) - 1
     let maxY = (Array.length data) - 1
@@ -43,26 +43,23 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
     member this.Display() = printfn "%s" (this.AsText())
     member this.TeeDisplay() = this.Display(); this
 
-    member this.InBounds(x, y) = x >= 0 && x <= maxX && y >=0 && y <= maxY
+    member _.InBounds(x, y) = x >= 0 && x <= maxX && y >=0 && y <= maxY
 
     member this.Copy() = this.Transform (fun g x y -> g.[x,y])
+
+    member this.Flatern() =
+        seq{ for y in 0 .. maxY do
+                for x in 0 .. maxX do
+                     yield ((x, y), data.[y].[x]) }
 
     member _.Coords() =
         seq{ for y in 0 .. maxY do
                 for x in 0 .. maxX do
                      yield (x, y) }
-    // Use preds!
-    member this.Filter(pred) =
-        this.Coords ()
-        |> Seq.filter (fun (x, y) -> (pred this.[x, y]))
 
-    member this.Find(v) =
-        this.Coords ()
-        |> Seq.find (fun (x, y) -> this.[x, y] = v)    // new /use preds
+    member this.Filter(pred) = this.Flatern() |> Seq.filter (snd >> pred)
 
-    member this.TryFind(v) =
-        this.Coords ()
-        |> Seq.tryFind (fun (x, y) -> this.[x, y] = v) // new / use preds
+    member this.Find(pred) = this.Filter(pred) |> Seq.head |> fst
 
     member this.NHood(x, y) =
         [| for x in (x - 1)..(x + 1) do
@@ -73,26 +70,34 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
 
     member this.Adjacent(x, y) =
         let nhood = this.NHood (x, y)
-        nhood.[4] <- None
-        nhood
+        Array.append nhood.[0 .. 3] nhood.[5 .. 8]
 
-    member this.Transform(generate: Grid<'a> -> int -> int -> 'a) =
-        [| for y in 0 .. maxY do
-            [| for x in 0 .. maxX do
-                generate this x y |] |]
-        |> Grid
+    member this.Bordering(x, y) =
+        [| this.TryGet (x, y - 1); 
+           this.TryGet (x + 1, y); 
+           this.TryGet (x, y + 1); 
+           this.TryGet (x - 1, y); |]
 
-    member _.Flattern() = Array.collect id data     // with coord?
+    member this.Transform<'b  when 'b : equality> 
+        (generate: Grid<'a> -> int -> int -> 'b) : Grid<'b> =
+            [| for y in 0 .. maxY do
+                [| for x in 0 .. maxX do
+                    generate this x y |] |]
+            |> Grid<'b>
+
     member _.Corners() = [| (0, 0); (0, maxY); (maxX, maxY); (maxX, 0) |]
-    member this.Get(x, y) = this.[x, y]
-    member this.Set(x, y) value = this.[x, y] <- value
-
+    member this.Get((x, y)) = this.[x, y]
+    member this.Set((x, y)) value = this.[x, y] <- value
+    member this.TryGet((x, y)) =
+        match this.InBounds(x, y) with
+        | true -> Some (this.Get((x, y)))
+        | false -> None
+        
 type Triton = Grid<char>
 
 let tritonGrid =
     Array.map (fun (s: string) -> s.ToCharArray())
     >> Triton
-
 let parseLine (line: string) =
     Regex.Match(line, @"(.*)")
     |> fun (m: Match) ->
@@ -147,12 +152,12 @@ type Guide = Map<char,list<char * int> * list<char * int>>
 let guide lines =
     let triton = triton lines
     let reachable = reachable triton
-    let start = triton.Find ('@')
+    let start = triton.Find ((=)'@')
     triton.Set start '.'
     triton.Filter (Char.IsLetter)
     |> Seq.map 
-        ((fun coord -> coord, triton.Get coord) >>
-        (fun (coord, ltr) -> ltr, (reachable coord )))
+        // ((fun coord -> coord, triton.Get coord) >>
+        (fun (coord, ltr) -> ltr, (reachable coord ))
     |> Map
     |> Map.add '@' (reachable start)    
 

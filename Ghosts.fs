@@ -80,14 +80,19 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
 
     member this.Copy() = this.Transform (fun g x y -> g.[x,y])
 
+    member this.Flatern() =
+        seq{ for y in 0 .. maxY do
+                for x in 0 .. maxX do
+                     yield ((x, y), data.[y].[x]) }
+
     member _.Coords() =
         seq{ for y in 0 .. maxY do
                 for x in 0 .. maxX do
                      yield (x, y) }
 
-    member this.Filter(pred) =
-        this.Coords ()
-        |> Seq.filter (fun (x, y) -> (pred this.[x, y]))
+    member this.Filter(pred) = this.Flatern() |> Seq.filter (snd >> pred)
+
+    member this.Find(pred) = this.Filter(pred) |> Seq.head |> fst
 
     member this.NHood(x, y) =
         [| for x in (x - 1)..(x + 1) do
@@ -112,10 +117,6 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
                 [| for x in 0 .. maxX do
                     generate this x y |] |]
             |> Grid<'b>
-
-    member this.Flatern() =
-        this.Coords ()
-        |> Seq.map (fun (x, y) -> (x, y), this.[x, y])
 
     member _.Corners() = [| (0, 0); (0, maxY); (maxX, maxY); (maxX, 0) |]
     member this.Get((x, y)) = this.[x, y]
