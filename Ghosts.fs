@@ -5,10 +5,9 @@ module Ghosts
 
 open System
 
-let nl = System.Environment.NewLine
+let nl = Environment.NewLine
 
 // strings, chars, hex
-let len (seq : seq<'a>) = Seq.length seq
 let toChars (str : string) = str.ToCharArray()
 let fromChars (chrs : char[]) = String(chrs)
 let encode (str : string) = System.Text.Encoding.ASCII.GetBytes(str);
@@ -77,7 +76,7 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
     member this.Display() = printfn "%s" (this.AsText())
     member this.TeeDisplay() = this.Display(); this
 
-    member this.InBounds(x, y) = x >= 0 && x <= maxX && y >=0 && y <= maxY
+    member _.InBounds(x, y) = x >= 0 && x <= maxX && y >=0 && y <= maxY
 
     member this.Copy() = this.Transform (fun g x y -> g.[x,y])
 
@@ -86,9 +85,9 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
                 for x in 0 .. maxX do
                      yield (x, y) }
 
-    member this.FilterSeq(v) =
+    member this.Filter(pred) =
         this.Coords ()
-        |> Seq.filter (fun (x, y) -> this.[x, y] = v)
+        |> Seq.filter (fun (x, y) -> (pred this.[x, y]))
 
     member this.NHood(x, y) =
         [| for x in (x - 1)..(x + 1) do
@@ -99,20 +98,33 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
 
     member this.Adjacent(x, y) =
         let nhood = this.NHood (x, y)
-        nhood.[4] <- None
-        nhood
+        Array.append nhood.[0 .. 3] nhood.[5 .. 8]
 
-    member this.Transform(generate: Grid<'a> -> int -> int -> 'a) =
-        [| for y in 0 .. maxY do
-            [| for x in 0 .. maxX do
-                generate this x y |] |]
-        |> Grid
+    member this.Bordering(x, y) =
+        [| this.TryGet (x, y - 1); 
+           this.TryGet (x + 1, y); 
+           this.TryGet (x, y + 1); 
+           this.TryGet (x - 1, y); |]
 
-    member _.Flattern() = Array.collect id data
+    member this.Transform<'b  when 'b : equality> 
+        (generate: Grid<'a> -> int -> int -> 'b) : Grid<'b> =
+            [| for y in 0 .. maxY do
+                [| for x in 0 .. maxX do
+                    generate this x y |] |]
+            |> Grid<'b>
+
+    member this.Flatern() =
+        this.Coords ()
+        |> Seq.map (fun (x, y) -> (x, y), this.[x, y])
+
     member _.Corners() = [| (0, 0); (0, maxY); (maxX, maxY); (maxX, 0) |]
-    member this.Get(x, y) value = this.[x, y]
-    member this.Set(x, y) value = this.[x, y] <- value
-
+    member this.Get((x, y)) = this.[x, y]
+    member this.Set((x, y)) value = this.[x, y] <- value
+    member this.TryGet((x, y)) =
+        match this.InBounds(x, y) with
+        | true -> Some (this.Get((x, y)))
+        | false -> None
+        
 type Thingy = Grid<char>
 
 let textGrid =
