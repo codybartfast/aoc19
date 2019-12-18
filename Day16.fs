@@ -3,27 +3,12 @@ let day = "16"
 
 open System
 open System.IO
-open System.Text.RegularExpressions
-
-let nl = System.Environment.NewLine
-let print obj= (printfn "%A" obj)
-let tPrint obj = (print obj); obj
 
 let readLines day =
     File.ReadAllLines (Path.Combine("inputs", "input" + day + ".txt"))
 let lines = readLines day
 
-let parse (str: string) =
-    str.ToCharArray() |> Array.map (int >> ((+) -48))
-
-let test1a = "12345678"
-let test1b = "80871224585914546619083218645595"
-let test1c = "19617804207202209144916044189917"
-let test1d = "69317163492948606335995924319873"
-
-let test2a = "03036732577212944063491565474664"
-let test2b = "02935109699940807407585447034323"
-let test2c = "03081770884921959731165446850517"
+let parse (str: string) = str.ToCharArray() |> Array.map (int >> ((+) -48))
 
 let input = lines.[0]
 
@@ -31,7 +16,7 @@ let seeds = [0; 1; 0; -1]
 
 let pattern col row =
     match ((col + 1) / (row + 1)) % 4 with
-    | 0 -> 0 | 1 -> 1 | 2 -> 0  | 3 -> -1
+    | 0 -> 0 | 1 -> 1 | 2 -> 0  | 3 -> -1 | _ -> failwith "shh"
 
 let value (signal: int[]) row col = signal.[col] * pattern col row
 
@@ -59,33 +44,28 @@ let first8 output =
 
 let repeatArr n array = [|1 .. n|] |> Array.collect (fun i -> array)
 
-let Part1 () =
-    let input = (parse input)
-    // repeatFn phase 100 signal |> first8
-
-    // (phase input).[input.Length / 2 ..]
-    (repeatFn phase 100 input).[input.Length / 2 ..]
-
 let lastPart start (input: int[]) =
     let len = input.Length
+    assert (start >= (len / 2))
 
     seq{len - 2 .. -1 .. start}
     |> Seq.iter (fun i ->
         input.[i] <-  input.[i + 1] + input.[i] |> single)
     input
 
+let offset =
+    Array.take 7 >> Array.map string >> String.concat "" >> Int32.Parse
+
+let Part1 () =
+    let input = (parse input)
+    (repeatFn phase 100 input) |> first8
 
 let Part2 () =
-    let input = (parse test2c)
-    let offset = 
-        input |> Array.take 7 |> Array.map (fun n -> n.ToString())
-        |> String.concat "" |> Int32.Parse
+    let input = (parse input)
+    let offset = offset input
 
     let mega = repeatArr 10_000 input
     repeatFn (lastPart offset) 100 mega |> ignore
-    mega.[offset .. offset + 8]
-    |> Array.map (fun n -> n.ToString())
+    mega.[offset .. offset + 7]
+    |> Array.map string
     |> String.concat ""
-
-
-// 538508008 High
