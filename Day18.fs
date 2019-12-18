@@ -9,6 +9,15 @@ let nl = Environment.NewLine
 let print obj= (printfn "%O" obj)
 let tPrint obj = (print obj); obj
 
+let toLines str = Regex.Split(str, @"\r?\n")
+
+let test1d = toLines @"########################
+#@..............ac.GI.b#
+###d#e#f################
+###A#B#C################
+###g#h#i################
+########################"
+
 type Grid<'a when 'a : equality>(jagged: 'a[][]) =
     // aoc15:18
     let data = jagged
@@ -42,18 +51,18 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
         seq{ for y in 0 .. maxY do
                 for x in 0 .. maxX do
                      yield (x, y) }
-
-    member this.FilterSeq(v) =
+    // Use preds!
+    member this.Filter(pred) =
         this.Coords ()
-        |> Seq.filter (fun (x, y) -> this.[x, y] = v)  // Use Flattern ??
+        |> Seq.filter (fun (x, y) -> (pred this.[x, y]))
 
     member this.Find(v) =
         this.Coords ()
-        |> Seq.find (fun (x, y) -> this.[x, y] = v)    // new
+        |> Seq.find (fun (x, y) -> this.[x, y] = v)    // new /use preds
 
     member this.TryFind(v) =
         this.Coords ()
-        |> Seq.tryFind (fun (x, y) -> this.[x, y] = v) // new
+        |> Seq.tryFind (fun (x, y) -> this.[x, y] = v) // new / use preds
 
     member this.NHood(x, y) =
         [| for x in (x - 1)..(x + 1) do
@@ -73,7 +82,7 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
                 generate this x y |] |]
         |> Grid
 
-    member _.Flattern() = Array.collect id data
+    member _.Flattern() = Array.collect id data     // with coord?
     member _.Corners() = [| (0, 0); (0, maxY); (maxX, maxY); (maxX, 0) |]
     member this.Get(x, y) = this.[x, y]
     member this.Set(x, y) value = this.[x, y] <- value
@@ -93,14 +102,13 @@ let parseLine (line: string) =
 
 let readLines day =
     File.ReadAllLines (Path.Combine("inputs", "input" + day + ".txt"))
-let triton () = tritonGrid (readLines day)
+let input = readLines day
+let triton lines = tritonGrid (lines)
 
 type Location = Wall | Clear | Origin | Oxygen
 type Direction = North | South | West | East
 
-let distanceKeys (triton: Triton) (keys: Set<char>) start =
-    // print triton
-
+let reachable (triton: Triton) start =
     let nextPosition (x, y) dir =
         match dir with
         | North -> (x, y - 1)
@@ -117,45 +125,78 @@ let distanceKeys (triton: Triton) (keys: Set<char>) start =
 
     let rec distances been pos dist =
         let been = Set.add pos been
-        match triton.Get pos with
-        | key when keys.Contains key ->  Seq.singleton (Some (key, dist))
-        | '#' -> Seq.singleton None
-        | door when Char.IsUpper door -> Seq.singleton None
-        | _ ->
-            [North; South; West; East]
-            |> Seq.map (nextPosition pos)
-            |> Seq.filter (been.Contains >> not)
-            |> Seq.collect (fun next ->
+        [North; South; West; East]
+        |> Seq.map (nextPosition pos)
+        |> Seq.filter (been.Contains >> not)
+        |> Seq.collect (fun next ->
+            match triton.Get next with
+            | '#' -> Seq.singleton None
+            | ltr when Char.IsLetter ltr -> Seq.singleton (Some (ltr, dist))
+            | _ ->
                 distances been next (dist + 1))
+
     distances Set.empty start 0 
     |> Seq.choose id
     |> Seq.groupBy fst
     |> Seq.map (fun (_, keys) -> keys |> Seq.minBy snd)
+    |> List.ofSeq 
+    |> List.partition (fst >> Char.IsLower)
+    //|> (fun (keys, doors) -> (Map keys, Map doors))
 
-let nearestKey (triton: Triton) (keys: Set<char>) start =
-    distanceKeys triton keys start
-    |> Seq.minBy snd
-
-let rec collectKeys (triton: Triton) keys start dist =
-    if Set.isEmpty keys then dist else
-
-    let key, keyDist = nearestKey triton keys start
-    let keyPos = triton.Find key
-    let doorPos = triton.Find (Char.ToUpper key)
-    let dist = keyDist + dist
-    let keys = keys.Remove key
-    triton.Set keyPos '.'
-    triton.Set doorPos '.'
-    collectKeys triton keys keyPos dist
-
-let Part1 () =
-    let triton = triton ()
+type Guide = Map<char,list<char * int> * list<char * int>>
+let guide lines =
+    let triton = triton lines
+    let reachable = reachable triton
     let start = triton.Find ('@')
-    // distance triton start 'a'
-    // findKeys triton start
-    let keys = [(int 'a') .. (int 'z')] |> List.map char |> Set
-    // nearestKey triton (Set keys) start
-    collectKeys triton keys start 0
+    triton.Set start '.'
+    triton.Filter (Char.IsLetter)
+    |> Seq.map 
+        ((fun coord -> coord, triton.Get coord) >>
+        (fun (coord, ltr) -> ltr, (reachable coord )))
+    |> Map
+    |> Map.add '@' (reachable start)    
+
+let explore (guide: Guide) keys =
+    let beenKey found loc = (found, loc)
+
+    let rec explore been (found: Set<char>) toFind loc dist =
+        let here = beenKey found loc
+        printfn "%A - %A - %A" 
+            loc 
+            (found |> Set.toArray |> String)
+            (Set.contains here been)
+        if Set.contains here been then Seq.singleton None else
+        let been = been.Add here
+
+        if Set.isEmpty toFind
+            then Seq.singleton (Some dist)
+        else
+            let keys, doors = guide.[loc]
+            let keysToPick = keys |> List.filter (fst >> toFind.Contains)
+            let openDoors = 
+                doors |> List.filter (fst >> Char.ToLower >> found.Contains)
+            seq{
+                yield!
+                    keysToPick
+                    |> Seq.collect (fun (key, dst) ->
+                        let found = found.Add key
+                        let toFind = toFind.Remove key
+                        explore been found toFind key (dist + dst))
+                yield!
+                    openDoors
+                    |> Seq.collect (fun (door, dst) ->
+                        explore been found toFind door (dist + dst)) }
+    explore Set.empty Set.empty (Set keys) '@' 0
+
+let Part1 () = 
+    let guide = guide test1d
+    let keys = [ 'a' .. 'i']
+    explore guide keys
+    |> Seq.choose id
+    |> Seq.head
+   
+    
+
 
 let Part2 () =
     ()
