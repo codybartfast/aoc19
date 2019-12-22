@@ -11,7 +11,33 @@ let tPrint obj = (print obj); obj
 
 let toLines str = Regex.Split(str, @"\r?\n")
 
-let test1d = toLines @"########################
+let test1a = toLines @"#########
+#b.A.@.a#
+#########"
+
+let test1b = toLines @"########################
+#f.D.E.e.C.b.A.@.a.B.c.#
+######################.#
+#d.....................#
+########################"
+
+let test1c = toLines @"########################
+#...............b.C.D.f#
+#.######################
+#.....@.a.B.c.d.A.e.F.g#
+########################"
+
+let test1d = toLines @"#################
+#i.G..c...e..H.p#
+########.########
+#j.A..b...f..D.o#
+########@########
+#k.E..a...g..B.n#
+########.########
+#l.F..d...h..C.m#
+#################"
+
+let test1e = toLines @"########################
 #@..............ac.GI.b#
 ###d#e#f################
 ###A#B#C################
@@ -118,7 +144,7 @@ let parseLine (line: string) =
 let readLines day =
     File.ReadAllLines (Path.Combine("inputs", "input" + day + ".txt"))
 let input = readLines day
-let triton lines = tritonGrid (lines)
+let buildTriton lines = tritonGrid (lines)
 
 type Location = Wall | Clear | Origin | Oxygen
 type Direction = North | South | West | East
@@ -168,14 +194,14 @@ let overview triton start =
     explore triton start (Char.IsLetter) true
     |> Map
 
-let paths overview =
+let paths overview keyCount =
     let paths = 
         overview
         |> Map.toSeq
         |> Seq.filter (fst >> isKey)
         |> Seq.map (fun (key, (path, _)) -> (key, path))
         |> Map
-    assert (paths.Count = 26)
+    assert (paths.Count = keyCount)
     paths
 
 let rec startsWith list1 list2 =
@@ -204,8 +230,8 @@ let furthestKey overview =
     overview
     |> Map.toList
     |> List.filter (fst >> isKey)
-    |> List.sortByDescending (snd >> snd)
-    // |> List.sortByDescending (snd >> fst >> List.length)
+    // |> List.sortByDescending (snd >> snd)
+    |> List.sortByDescending (snd >> fst >> List.length)
     |> List.head
     |> fst
 
@@ -232,18 +258,13 @@ let reqdKeys paths key =
     |> List.rev
     |> deDup
 
-let targets tunnels leafKeys reqdKeys (keysHeld: Set<char>) =
-    let wanted = 
-        Set.difference
-            (Set.union leafKeys (set reqdKeys))
-            keysHeld      
-
+let reachable tunnels allKeys keysHeld =
+    let wanted = Set.difference allKeys keysHeld      
     let reachable =
         tunnels
             |> List.collect (List.takeWhile (fun chr ->
                 isKey chr || keysHeld.Contains (keyForDoor chr)))
             |> Set
-
     Set.intersect wanted reachable
 
 let nextKey (keysHeld: Set<char>) reqdKeys =
@@ -299,68 +320,57 @@ let findDist triton (overview: Map<char,list<char> * int>) =
             then known.[(aHead, bHead)] + depth a + depth b
             else diff a b
 
-let minDist dist first via last =
-    let via = Set.toList via
-    match via with
-    | [] -> dist first last
-    | [a] -> dist first a + dist a last
-    | _ ->
-        print (String (Array.ofList via))
-        permutations via
-        |> List.map (fun (middle: char list) ->
-            (dist first (middle.Head))
-            + (dist (List.last middle) last)
-            + (List.pairwise middle 
-                |> List.sumBy (fun (a, b) -> dist a b)))
-        |> List.min
+let routeLength findDist route =
+    route
+    |> List.pairwise
+    |> List.sumBy (fun (a, b) -> findDist a b)
     
 let collect (triton: Triton) =
 
     let start = triton.Find ((=) '@')
     let overview = overview triton start
     let allKeys = triton.Filter isKey |> Seq.map snd |> Set
-    let paths = paths overview
-    let tunnels = tunnels paths
-    let furthestKey = furthestKey overview
-    let reqdKeys = reqdKeys paths furthestKey
-    let otherKeys = Set.difference allKeys (Set reqdKeys)
+    let paths = paths overview (allKeys.Count)
+    let tunnels = tunnels paths 
     let findDist = findDist triton overview
+    let furthestKey = furthestKey overview
+    
 
-    let rec collect (dist: int) keysHeld here =
-        if keysHeld = allKeys then dist else
+    let rec collect (dist: int) keysHeld here = seq{
+        if keysHeld = allKeys then yield dist else
 
-        let targets = targets tunnels otherKeys reqdKeys keysHeld
-        let nextKey = nextKey (Set.union targets keysHeld) reqdKeys
-        let thisDist = minDist findDist here targets nextKey
-        let collected = targets.Add nextKey
-        collect 
-            (dist + thisDist)
-            (Set.union keysHeld collected)
-            nextKey
-       
+        let reachable = reachable tunnels allKeys keysHeld
+        let unreachableReqdKeys = 
+            reqdKeys paths furthestKey
+            |> List.skipWhile (fun k -> 
+                reachable.Contains k || keysHeld.Contains k)
+        let routes =
+            match unreachableReqdKeys with
+            | [] -> 
+                permutations (Set.toList reachable)
+                |> List.map (fun route ->  here::route)
+            | h::_ -> 
+                permutations (Set.toList reachable)
+                |> List.map (fun route -> here::(List.append route [h]))
+        let route = routes |> List.minBy (routeLength findDist)
+        let next = route |> List.item 1
+
+        // printfn  " -> %A" next
+        // printfn "h: %A; r: %A; u:%A" keysHeld reachable unreachableReqdKeys
+
+        yield! collect
+                (dist + (findDist here next))
+                (keysHeld.Add next)
+                next}
+           
     collect 0 Set.empty '@'
 
 
-let Part1 () =
-    let triton = triton input
-    collect triton
+let Part1 () = ()
 
-    // let start = triton.Find ((=) '@')
-    // let overview = overview triton start
-
-    // let allKeys = triton.Filter isKey |> Seq.map snd |> Set
-    // let paths = paths overview
-    // let tunnels = tunnels paths
-
-    // let lastKey :: leafKeys = leafKeys tunnels allKeys
-    // let leafKeys = Set leafKeys
-    // let reqdKeys = reqdKeys paths lastKey
-    // let targets = targets tunnels leafKeys reqdKeys Set.empty 
-    // let nextKey = nextKey targets reqdKeys
-    // // printfn "%A  --  %A" targets nextKey
-    // printfn "%A" tunnels
-    // findDist triton overview 'r' 's'
     
 let Part2 () =
-    [] |> List.pairwise
+    let triton = buildTriton input
+    collect triton
+
 
