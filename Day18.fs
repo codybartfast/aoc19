@@ -18,6 +18,16 @@ let test1d = toLines @"########################
 ###g#h#i################
 ########################"
 
+let rec permutations list =
+    // aoc15:13
+    let rec insertAlong i list =
+        match list with
+        | [] -> [[i]]
+        | h::t -> (i::list)::(List.map (fun sub -> h::sub) (insertAlong i t))
+    match list with
+    | [] -> [[]]
+    | head::tail -> List.collect (insertAlong head) (permutations tail)
+
 type Grid<'a when 'a : equality>(jagged: 'a[][]) =
     // aoc15:18
     let data = jagged
@@ -113,6 +123,10 @@ let triton lines = tritonGrid (lines)
 type Location = Wall | Clear | Origin | Oxygen
 type Direction = North | South | West | East
 
+let isDoor = Char.IsUpper
+let isKey = Char.IsLower
+let keyForDoor = Char.ToLower
+
 let explore (triton: Triton) start isTarget contOnFind =
     let nextPosition (x, y) dir =
         match dir with
@@ -128,7 +142,7 @@ let explore (triton: Triton) start isTarget contOnFind =
     let reverse = function
         | North -> South | South -> North | West -> East | East -> West
 
-    let rec explore been doors pos dist =
+    let rec explore been hist pos dist =
         let been = Set.add pos been
         [North; South; West; East]
         |> Seq.map (nextPosition pos)
@@ -137,30 +151,216 @@ let explore (triton: Triton) start isTarget contOnFind =
             match triton.Get next with
             | '#' -> ()
             | key when (isTarget key) ->
-                yield (Some ((key, List.rev doors), dist))
-                if contOnFind then yield! explore been doors next (dist + 1)
-            | door when Char.IsUpper door ->
-                yield! explore been (door::doors) next (dist + 1) 
-            | _ -> yield! explore been doors next (dist + 1) })
+                yield Some (key, (List.rev (key::hist), dist))
+                if contOnFind then
+                    yield! explore been (key::hist) next (dist + 1)
+            | door when isDoor door ->
+                yield! explore been (door::hist) next (dist + 1)
+            | _ -> yield! explore been hist next (dist + 1) })
 
-    explore Set.empty [] start 0
+    explore Set.empty [] start 1
     |> Seq.choose id
     |> Seq.groupBy fst
     |> Seq.map (fun (_, keys) -> keys |> Seq.minBy snd)
     |> List.ofSeq
 
-let directDistances triton  start = 
-    explore triton start (Char.IsLower) true
+let overview triton start =
+    explore triton start (Char.IsLetter) true
+    |> Map
+
+let paths overview =
+    let paths = 
+        overview
+        |> Map.toSeq
+        |> Seq.filter (fst >> isKey)
+        |> Seq.map (fun (key, (path, _)) -> (key, path))
+        |> Map
+    assert (paths.Count = 26)
+    paths
+
+let rec startsWith list1 list2 =
+    match list1, list2 with
+    | _, [] -> true
+    | [], _ -> false
+    | h1::t1, h2::t2 when h1 = h2 -> startsWith t1 t2
+    | _ -> false
+
+let tunnels paths =
+    let paths =
+        paths
+        |> Map.toList
+        |> List.map snd 
+        |> List.sortByDescending id
+    let rec tunnels keep (paths: char list list) =
+        match paths with
+        | [] -> keep
+        | [a] -> a::keep
+        | a::b::c when startsWith a b -> tunnels keep (a::c)
+        | a::b::c -> tunnels (a::keep) (b::c)
+    tunnels [] paths
+    |> List.rev
+
+let furthestKey overview =
+    overview
+    |> Map.toList
+    |> List.filter (fst >> isKey)
+    |> List.sortByDescending (snd >> snd)
+    // |> List.sortByDescending (snd >> fst >> List.length)
+    |> List.head
+    |> fst
+
+let reqdKeys paths key =
+    let deDup items =
+        let rec deDup seen deDupped items =
+            match items with
+            | [] -> List.rev deDupped
+            | h::t ->
+                if Set.contains h seen
+                then deDup seen deDupped t
+                else deDup (seen.Add h) (h::deDupped) t
+        deDup Set.empty [] items
+
+    let rec reqdKeys paths key = seq{
+        yield key
+        yield!
+            Map.find key paths
+            |> List.filter isDoor
+            |> Seq.collect (keyForDoor >> (reqdKeys paths)) }
+
+    reqdKeys paths key
+    |> List.ofSeq
+    |> List.rev
+    |> deDup
+
+let targets tunnels leafKeys reqdKeys (keysHeld: Set<char>) =
+    let wanted = 
+        Set.difference
+            (Set.union leafKeys (set reqdKeys))
+            keysHeld      
+
+    let reachable =
+        tunnels
+            |> List.collect (List.takeWhile (fun chr ->
+                isKey chr || keysHeld.Contains (keyForDoor chr)))
+            |> Set
+
+    Set.intersect wanted reachable
+
+let nextKey (keysHeld: Set<char>) reqdKeys =
+    reqdKeys |> List.find (keysHeld.Contains >> not)
+
+let findDist triton (overview: Map<char,list<char> * int>) =
+    let heads = 
+        overview
+        |> Map.toList
+        |> List.map (snd >> fst >> List.head)
+        |> Set
+
+    let startToHeads = 
+        heads
+        |> Seq.map (fun h -> 
+            let _, d = overview.[h]
+            (('@', h), d))
+
+    let headsToHeads = 
+        let headToHeads (loc, head) =
+            explore triton loc (heads.Contains) false
+            |> List.map (fun (other, (_, d)) -> ((head, other), d))
+        let coords = triton.Filter (heads.Contains)
+        coords
+        |> Seq.collect headToHeads
+
+    let known =
+        Seq.append startToHeads headsToHeads
+        |> Seq.fold (fun m (k, v) -> Map.add k v m) Map.empty
+    
+    let head a = overview.[a] |> (fst >> List.head)
+    let dist a = overview.[a] |> snd
+    let depth a = (dist a) - (dist (head a))
+    let path a = overview.[a] |> fst
+
+    let diff a b =
+        if startsWith (path a) (path b)
+        then depth a - depth b
+        elif startsWith (path b) (path a)
+        then depth b - depth a
+        else
+            let loc = triton.Find ((=) a)
+            explore triton loc ((=) b) false
+                |> List.head |> snd |> snd
+
+    fun a b ->
+        if a = b then 0
+        elif a = '@' then 
+            known.[(a, head b)] + depth b
+        else
+            let aHead, bHead =  head a, head b
+            if aHead <> bHead
+            then known.[(aHead, bHead)] + depth a + depth b
+            else diff a b
+
+let minDist dist first via last =
+    let via = Set.toList via
+    match via with
+    | [] -> dist first last
+    | [a] -> dist first a + dist a last
+    | _ ->
+        print (String (Array.ofList via))
+        permutations via
+        |> List.map (fun (middle: char list) ->
+            (dist first (middle.Head))
+            + (dist (List.last middle) last)
+            + (List.pairwise middle 
+                |> List.sumBy (fun (a, b) -> dist a b)))
+        |> List.min
+    
+let collect (triton: Triton) =
+
+    let start = triton.Find ((=) '@')
+    let overview = overview triton start
+    let allKeys = triton.Filter isKey |> Seq.map snd |> Set
+    let paths = paths overview
+    let tunnels = tunnels paths
+    let furthestKey = furthestKey overview
+    let reqdKeys = reqdKeys paths furthestKey
+    let otherKeys = Set.difference allKeys (Set reqdKeys)
+    let findDist = findDist triton overview
+
+    let rec collect (dist: int) keysHeld here =
+        if keysHeld = allKeys then dist else
+
+        let targets = targets tunnels otherKeys reqdKeys keysHeld
+        let nextKey = nextKey (Set.union targets keysHeld) reqdKeys
+        let thisDist = minDist findDist here targets nextKey
+        let collected = targets.Add nextKey
+        collect 
+            (dist + thisDist)
+            (Set.union keysHeld collected)
+            nextKey
+       
+    collect 0 Set.empty '@'
+
 
 let Part1 () =
     let triton = triton input
-    let start = triton.Find ((=) '@')
-    directDistances triton start
-    |> List.iter (printfn "%A")
+    collect triton
 
+    // let start = triton.Find ((=) '@')
+    // let overview = overview triton start
 
+    // let allKeys = triton.Filter isKey |> Seq.map snd |> Set
+    // let paths = paths overview
+    // let tunnels = tunnels paths
 
-
+    // let lastKey :: leafKeys = leafKeys tunnels allKeys
+    // let leafKeys = Set leafKeys
+    // let reqdKeys = reqdKeys paths lastKey
+    // let targets = targets tunnels leafKeys reqdKeys Set.empty 
+    // let nextKey = nextKey targets reqdKeys
+    // // printfn "%A  --  %A" targets nextKey
+    // printfn "%A" tunnels
+    // findDist triton overview 'r' 's'
+    
 let Part2 () =
-    ()
+    [] |> List.pairwise
 
