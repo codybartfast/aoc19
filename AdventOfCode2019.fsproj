@@ -26,7 +26,8 @@
     <!-- <Compile Include="Day16 ∿.fs" /> -->
     <!-- <Compile Include="Day17 ☀.fs" /> -->
     <!-- <Compile Include="Day18.fs" /> -->
-    <Compile Include="Day19 🚜.fs" />
+    <!-- <Compile Include="Day19 🚜.fs" /> -->
+    <Compile Include="Day20.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
