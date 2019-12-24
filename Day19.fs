@@ -17,13 +17,13 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
 
     let mutable formatItem = (fun x -> x.ToString())
 
-    static member Generate<'a when 'a : equality>(width, height, gen: int -> int -> 'a) =
-        [| for y in 0 .. (height - 1) do
-            [| for x in 0 .. (width - 1) do
-                gen x y |] |] 
-        |> Grid<'a> 
-        
-            
+    static member Generate<'a when 'a : equality>
+        (width, height, gen: int -> int -> 'a) =
+            [| for y in 0 .. (height - 1) do
+                [| for x in 0 .. (width - 1) do
+                    gen x y |] |] 
+            |> Grid<'a> 
+              
     member _.Item
         with get(x, y) = data.[y].[x]
         and set(x, y) v = data.[y].[x] <- v
@@ -200,14 +200,45 @@ let droneApi program (x: int) (y: int) =
     | 1L -> '#'
     | _ -> failwith "oops!"
 
-let Part1 () =
-    let program = compile code
+let drone program = 
     let input, output, sendInstr = controlInverter ()
     let run = computer program input output
-    let drone = droneApi program
-    let field = Grid.Generate (50, 50, drone)
-    field.Filter ((=) '#')
-    |> Seq.length
+    droneApi program
+
+let fits drone size (x, y) =
+    let diff = size - 1
+    if 
+        y >= diff
+        && (drone x (y - diff)) = '#'
+        && (drone (x + diff) (y - diff)) = '#'
+        && (drone (x + diff) y) = '#'
+    then 
+        Some (x * 10_000 + (y - diff))
+    else
+        None
+
+let next drone x y =
+    assert (drone (x + 1) (y + 1) = '#')
+    if drone x (y + 1) = '#'
+    then (x, y + 1)
+    else (x + 1, y + 1)
+
+let start () = 3, 4
     
+let leftEdge drone start =
+    Seq.unfold
+        (fun (x, y) -> 
+            let next = next drone x y
+            Some (next, next))
+        start
+
+let Part1 () = ()
+    // let drone = drone (compile code)
+    // (Grid.Generate (100, 100, drone)).Filter ((=) '#')  
+    // |> Seq.length
+
 let Part2 () =
-    ()
+    let drone = drone (compile code)
+    let leftEdge = leftEdge drone (start ())
+    leftEdge
+    |> Seq.pick (fits drone 100)
