@@ -3,14 +3,10 @@ let day = "19"
 
 open System
 open System.IO
-open System.Text.RegularExpressions
 
 let nl = Environment.NewLine
-let print obj= (printfn "%O" obj)
-let tPrint obj = (print obj); obj
 
 type Grid<'a when 'a : equality>(jagged: 'a[][]) =
-    // aoc15:18
     let data = jagged
     let maxX = (Array.length (data.[0])) - 1
     let maxY = (Array.length data) - 1
@@ -21,9 +17,9 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
         (width, height, gen: int -> int -> 'a) =
             [| for y in 0 .. (height - 1) do
                 [| for x in 0 .. (width - 1) do
-                    gen x y |] |] 
-            |> Grid<'a> 
-              
+                    gen x y |] |]
+            |> Grid<'a>
+
     member _.Item
         with get(x, y) = data.[y].[x]
         and set(x, y) v = data.[y].[x] <- v
@@ -200,45 +196,43 @@ let droneApi program (x: int) (y: int) =
     | 1L -> '#'
     | _ -> failwith "oops!"
 
-let drone program = 
+let drone program =
     let input, output, sendInstr = controlInverter ()
     let run = computer program input output
     droneApi program
 
 let fits drone size (x, y) =
     let diff = size - 1
-    if 
-        y >= diff
-        && (drone x (y - diff)) = '#'
-        && (drone (x + diff) (y - diff)) = '#'
-        && (drone (x + diff) y) = '#'
-    then 
-        Some (x * 10_000 + (y - diff))
-    else
-        None
+    if y >= diff && (drone (x + diff) (y - diff)) = '#'
+    then Some (x * 10_000 + (y - diff))
+    else None
 
 let next drone x y =
-    assert (drone (x + 1) (y + 1) = '#')
+    // assert (drone (x + 1) (y + 1) = '#')
     if drone x (y + 1) = '#'
     then (x, y + 1)
     else (x + 1, y + 1)
 
-let start () = 3, 4
-    
-let leftEdge drone start =
+let start drone size =
+    let diff = size - 1
+    [0 .. diff]
+    |> List.map (fun x -> (x, diff))
+    |> List.filter (fun (x, y) -> drone x y = '#')
+    |> List.head
+
+let leftEdge drone =
     Seq.unfold
-        (fun (x, y) -> 
+        (fun (x, y) ->
             let next = next drone x y
             Some (next, next))
-        start
 
-let Part1 () = ()
-    // let drone = drone (compile code)
-    // (Grid.Generate (100, 100, drone)).Filter ((=) '#')  
-    // |> Seq.length
+let Part1 () =
+    let drone = drone (compile code)
+    (Grid.Generate (50, 50, drone))
+        .Filter ((=) '#')
+    |> Seq.length
 
 let Part2 () =
     let drone = drone (compile code)
-    let leftEdge = leftEdge drone (start ())
-    leftEdge
+    leftEdge drone (start drone 100)
     |> Seq.pick (fits drone 100)

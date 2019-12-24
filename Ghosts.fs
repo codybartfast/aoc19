@@ -52,12 +52,19 @@ let mapToString (map:Map<(int * int), int64>) =
     |> String.concat nl
 
 type Grid<'a when 'a : equality>(jagged: 'a[][]) =
-    // aoc15:18    
+    // aoc15:18
     let data = jagged
     let maxX = (Array.length (data.[0])) - 1
     let maxY = (Array.length data) - 1
 
     let mutable formatItem = (fun x -> x.ToString())
+
+    static member Generate<'a when 'a : equality>
+        (width, height, gen: int -> int -> 'a) =
+            [| for y in 0 .. (height - 1) do
+                [| for x in 0 .. (width - 1) do
+                    gen x y |] |] 
+            |> Grid<'a> 
 
     member _.Item
         with get(x, y) = data.[y].[x]
@@ -106,12 +113,12 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
         Array.append nhood.[0 .. 3] nhood.[5 .. 8]
 
     member this.Bordering(x, y) =
-        [| this.TryGet (x, y - 1); 
-           this.TryGet (x + 1, y); 
-           this.TryGet (x, y + 1); 
+        [| this.TryGet (x, y - 1);
+           this.TryGet (x + 1, y);
+           this.TryGet (x, y + 1);
            this.TryGet (x - 1, y); |]
 
-    member this.Transform<'b  when 'b : equality> 
+    member this.Transform<'b  when 'b : equality>
         (generate: Grid<'a> -> int -> int -> 'b) : Grid<'b> =
             [| for y in 0 .. maxY do
                 [| for x in 0 .. maxX do
@@ -125,9 +132,10 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
         match this.InBounds(x, y) with
         | true -> Some (this.Get((x, y)))
         | false -> None
-        
+
 type Thingy = Grid<char>
 
-let textGrid =
+let thingyGrid =
     Array.map (fun (s: string) -> s.ToCharArray())
     >> Thingy
+
