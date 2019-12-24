@@ -134,6 +134,7 @@ type Triton = Grid<char>
 let tritonGrid =
     Array.map (fun (s: string) -> s.ToCharArray())
     >> Triton
+    
 let parseLine (line: string) =
     Regex.Match(line, @"(.*)")
     |> fun (m: Match) ->
