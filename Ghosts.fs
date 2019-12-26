@@ -131,7 +131,7 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
                     generate this x y |] |]
             |> Grid<'b>
 
-    member this.Crop(x, width, y, height) =
+    member _.Crop(x, width, y, height) =
         data.[y .. (y + height - 1)]
         |> Array.map (fun row -> row.[x .. (x + width - 1)])
         |> Grid<'a>

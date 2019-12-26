@@ -43,38 +43,17 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
 
     member _.InBounds(x, y) = x >= 0 && x <= maxX && y >=0 && y <= maxY
 
-    member this.Copy() = this.Transform (fun g x y -> g.[x,y])
-
     member this.Flatern() =
         seq{ for y in 0 .. maxY do
                 for x in 0 .. maxX do
                      yield ((x, y), data.[y].[x]) }
 
-    member _.Coords() =
-        seq{ for y in 0 .. maxY do
-                for x in 0 .. maxX do
-                     yield (x, y) }
-
     member this.Filter(pred) = this.Flatern() |> Seq.filter (snd >> pred)
 
     member this.Find(pred) = this.Filter(pred) |> Seq.head |> fst
 
-    member this.NHood(x, y) =
-        [| for x in (x - 1)..(x + 1) do
-            for y in (y - 1)..(y + 1) do
-                if this.InBounds (x, y)
-                then Some this.[x,y]
-                else None |]
-
-    member this.Adjacent(x, y) =
-        let nhood = this.NHood (x, y)
-        Array.append nhood.[0 .. 3] nhood.[5 .. 8]
-
     member this.BorderingCoords(x, y) =
         [| (x, y - 1); (x + 1, y); (x, y + 1); (x - 1, y); |]
-
-    member this.Bordering(x, y) =
-        this.BorderingCoords(x, y) |> Array.map this.TryGet
 
     member this.Transform<'b  when 'b : equality>
         (generate: Grid<'a> -> int -> int -> 'b) : Grid<'b> =
@@ -83,19 +62,13 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
                     generate this x y |] |]
             |> Grid<'b>
 
-    member this.Crop(x, width, y, height) =
-        data.[y .. (y + height - 1)]
-        |> Array.map (fun row -> row.[x .. (x + width - 1)])
-        |> Grid<'a>
-        
-    member _.Corners() = [| (0, 0); (0, maxY); (maxX, maxY); (maxX, 0) |]
     member this.Get((x, y)) = this.[x, y]
     member this.Set((x, y)) value = this.[x, y] <- value
     member this.TryGet((x, y)) =
         match this.InBounds(x, y) with
         | true -> Some (this.Get((x, y)))
         | false -> None
-    
+
 type Pluto = Grid<string>
 
 let plutoGrid =
@@ -111,11 +84,11 @@ let isText str = Regex.IsMatch(str, @"[A-Z]")
 
 let labeledPluto input =
     let pluto = plutoGrid input
-    let labels = 
+    let labels =
         pluto.Filter isText
-        |> Seq.map (fun ((x,y), letter) -> 
-            (x, y), letter, 
-            pluto.TryGet (x + 1, y), 
+        |> Seq.map (fun ((x,y), letter) ->
+            (x, y), letter,
+            pluto.TryGet (x + 1, y),
             pluto.TryGet (x, y + 1))
         |> Seq.filter (fun (_, _, right, bottom) ->
             match right, bottom with
@@ -124,18 +97,18 @@ let labeledPluto input =
             | _ -> false)
         |> Seq.map (fun ((x, y), ltr1, right, bottom) ->
             match right, bottom with
-            | Some right, _ when isText right -> 
+            | Some right, _ when isText right ->
                 (x, y), ltr1, (x + 1, y), right
             | _, Some bottom ->
                 (x, y), ltr1, (x, y + 1), bottom)
 
     labels
     |> Seq.iter (fun (loc1, ltr1, loc2, ltr2) ->
-        let bordering = 
-            Set.union 
+        let bordering =
+            Set.union
                 (Set (pluto.BorderingCoords loc1))
                 (Set (pluto.BorderingCoords loc2))
-        let target = 
+        let target =
             bordering
             |> Seq.filter (fun coord ->
                 match pluto.TryGet coord with
@@ -147,8 +120,7 @@ let labeledPluto input =
         pluto.Set target (ltr1 + ltr2)
         pluto.Set loc1 " "
         pluto.Set loc2 " ")
-           
-    // let pluto = pluto.Crop(1, pluto.Width - 2, 1, pluto.Height - 2)
+
     let pluto = pluto.Transform (fun pluto x y ->
         match pluto.[x, y] with
         | " " -> "#" | str -> str)
@@ -162,62 +134,62 @@ let labeledPluto input =
 
 let toLines str = Regex.Split(str, @"\r?\n")
 
-let test1a = toLines @"         A           
-         A           
-  #######.#########  
-  #######.........#  
-  #######.#######.#  
-  #######.#######.#  
-  #######.#######.#  
-  #####  B    ###.#  
-BC...##  C    ###.#  
-  ##.##       ###.#  
-  ##...DE  F  ###.#  
-  #####    G  ###.#  
-  #########.#####.#  
-DE..#######...###.#  
-  #.#########.###.#  
-FG..#########.....#  
-  ###########.#####  
-             Z       
-             Z       "    
+let test1a = toLines @"         A
+         A
+  #######.#########
+  #######.........#
+  #######.#######.#
+  #######.#######.#
+  #######.#######.#
+  #####  B    ###.#
+BC...##  C    ###.#
+  ##.##       ###.#
+  ##...DE  F  ###.#
+  #####    G  ###.#
+  #########.#####.#
+DE..#######...###.#
+  #.#########.###.#
+FG..#########.....#
+  ###########.#####
+             Z
+             Z       "
 
-let test2a = toLines @"             Z L X W       C                 
-             Z P Q B       K                 
-  ###########.#.#.#.#######.###############  
-  #...#.......#.#.......#.#.......#.#.#...#  
-  ###.#.#.#.#.#.#.#.###.#.#.#######.#.#.###  
-  #.#...#.#.#...#.#.#...#...#...#.#.......#  
-  #.###.#######.###.###.#.###.###.#.#######  
-  #...#.......#.#...#...#.............#...#  
-  #.#########.#######.#.#######.#######.###  
-  #...#.#    F       R I       Z    #.#.#.#  
-  #.###.#    D       E C       H    #.#.#.#  
-  #.#...#                           #...#.#  
-  #.###.#                           #.###.#  
+let test2a = toLines @"             Z L X W       C
+             Z P Q B       K
+  ###########.#.#.#.#######.###############
+  #...#.......#.#.......#.#.......#.#.#...#
+  ###.#.#.#.#.#.#.#.###.#.#.#######.#.#.###
+  #.#...#.#.#...#.#.#...#...#...#.#.......#
+  #.###.#######.###.###.#.###.###.#.#######
+  #...#.......#.#...#...#.............#...#
+  #.#########.#######.#.#######.#######.###
+  #...#.#    F       R I       Z    #.#.#.#
+  #.###.#    D       E C       H    #.#.#.#
+  #.#...#                           #...#.#
+  #.###.#                           #.###.#
   #.#....OA                       WB..#.#..ZH
-  #.###.#                           #.#.#.#  
-CJ......#                           #.....#  
-  #######                           #######  
+  #.###.#                           #.#.#.#
+CJ......#                           #.....#
+  #######                           #######
   #.#....CK                         #......IC
-  #.###.#                           #.###.#  
-  #.....#                           #...#.#  
-  ###.###                           #.#.#.#  
-XF....#.#                         RF..#.#.#  
-  #####.#                           #######  
-  #......CJ                       NM..#...#  
-  ###.#.#                           #.###.#  
+  #.###.#                           #.###.#
+  #.....#                           #...#.#
+  ###.###                           #.#.#.#
+XF....#.#                         RF..#.#.#
+  #####.#                           #######
+  #......CJ                       NM..#...#
+  ###.#.#                           #.###.#
 RE....#.#                           #......RF
-  ###.###        X   X       L      #.#.#.#  
-  #.....#        F   Q       P      #.#.#.#  
-  ###.###########.###.#######.#########.###  
-  #.....#...#.....#.......#...#.....#.#...#  
-  #####.#.###.#######.#######.###.###.#.#.#  
-  #.......#.......#.#.#.#.#...#...#...#.#.#  
-  #####.###.#####.#.#.#.#.###.###.#.###.###  
-  #.......#.....#.#...#...............#...#  
-  #############.#.#.###.###################  
-               A O F   N                     
+  ###.###        X   X       L      #.#.#.#
+  #.....#        F   Q       P      #.#.#.#
+  ###.###########.###.#######.#########.###
+  #.....#...#.....#.......#...#.....#.#...#
+  #####.#.###.#######.#######.###.###.#.#.#
+  #.......#.......#.#.#.#.#...#...#...#.#.#
+  #####.###.#####.#.#.#.#.###.###.#.###.###
+  #.......#.....#.#...#...............#...#
+  #############.#.#.###.###################
+               A O F   N
                A A D   M                     "
 
 let to2D (x, y, z) = (x, y), z
@@ -231,7 +203,7 @@ let isOuter (pluto: Pluto) (x, y, _)=
 type Location = Wall | Clear | Origin | Oxygen
 type Direction = North | South | West | East
 
-let explore (pluto: Pluto) ((coord, _portal), dist) =
+let explore (pluto: Pluto) part1 ((coord, _portal), dist)  =
     let nextPosition (x, y) dir =
         match dir with
         | North -> (x, y - 1)
@@ -256,26 +228,25 @@ let explore (pluto: Pluto) ((coord, _portal), dist) =
         | _, "ZZ" -> None
         | _  -> Some (coord, portal)
 
-        // | depth, _ when (isOuter pluto coord) -> 
-        //     Some ((x, y, depth - 1), portal)
-        // | depth, _ -> Some ((x, y, depth + 1), portal)
-
     let rec explore been hist coord dist =
         let coord, depth = to2D coord
         let been = Set.add coord been
         [North; South; West; East]
         |> Seq.map (nextPosition coord)
         |> Seq.filter (been.Contains >> not)
-        |> Seq.collect (fun nextCoord -> 
+        |> Seq.collect (fun nextCoord ->
             let nextCoord3D = to3D nextCoord depth
             match pluto.Get nextCoord with
             | "#" -> Seq.empty
-            | "." -> explore been hist nextCoord3D (dist + 1) 
-            | portal -> 
-                match levelPortal nextCoord3D portal with
-                | None -> Seq.empty
-                | Some (nextCoord3D, portal) -> 
-                     Seq.singleton(Some ((nextCoord3D, portal), dist)) )
+            | "." -> explore been hist nextCoord3D (dist + 1)
+            | portal ->
+                match part1 with
+                | true -> Seq.singleton(Some ((nextCoord3D, portal), dist))
+                | false ->
+                    match levelPortal nextCoord3D portal with
+                    | None -> Seq.empty
+                    | Some (nextCoord3D, portal) ->
+                         Seq.singleton(Some ((nextCoord3D, portal), dist)) )
 
     explore Set.empty [] coord 1
     |> Seq.choose id
@@ -284,76 +255,60 @@ let explore (pluto: Pluto) ((coord, _portal), dist) =
         >> (fun ((coord, portal), d) -> ((coord, portal), dist + d)))
     |> List.ofSeq
 
-let usePortal (pluto: Pluto) =
-    let portals =
-        pluto.Filter isText
-        |> List.ofSeq
-        |> List.groupBy snd
-        |> Map
-    fun ((x, y, depth), label) ->
-        portals.[label]
-        |> List.filter (fun (c, _) -> c <> (x, y))
-        |> List.exactlyOne
-        |> fun ((x, y), portal) -> 
-            if isOuter pluto (x, y, depth) then
-                (x, y, depth + 1), portal
-            else
-                (x, y, depth - 1), portal
-
-let distances (pluto: Pluto) finish = 
-    let usePortal = usePortal pluto
+let distances (pluto: Pluto) part1 finish  =
+    let usePortal =
+        let portals =
+            pluto.Filter isText
+            |> List.ofSeq
+            |> List.groupBy snd
+            |> Map
+        fun ((x, y, depth), label) ->
+            portals.[label]
+            |> List.filter (fun (c, _) -> c <> (x, y))
+            |> List.exactlyOne
+            |> fun ((x, y), portal) ->
+                let depthDiff = if part1 then 0 else 1
+                if isOuter pluto (x, y, depth) then
+                    (x, y, depth + depthDiff), portal
+                else
+                    (x, y, depth - depthDiff), portal
 
     let rec distances dists starts =
-        if Map.containsKey finish dists then dists else
+        if Map.containsKey finish dists then dists.[finish] else
 
         let shorter =
             starts
-            |> List.collect (explore pluto)
+            |> List.collect (explore pluto part1)
             |> List.filter (fun ((coord, portal), dist) ->
                 not (Map.containsKey (coord, portal) dists) ||
                     dist < dists.[coord, portal])
             |> List.sortDescending
 
-        let dists = 
+        let dists =
             (dists, shorter)
-            ||> List.fold 
+            ||> List.fold
                 (fun dists ((coord, portal), dist) ->
                     (Map.add (coord, portal) dist dists))
- 
+
         shorter
         |> List.filter (fun (((_, _, z), portal), dist) ->
             portal <> "AA" && portal <> "ZZ")
         |> List.map (fun ((coord, portal), dist) ->
             (usePortal (coord, portal)), dist + 1)
         |> (distances dists)
-    
+
     let startLoc = to3D (pluto.Find ((=) "AA")) 0
     let startDist = ((startLoc, "AA"), 0)
-    distances 
+    distances
         (Map [startDist])
         [startDist]
 
 let Part1 () =
     let pluto = labeledPluto input
     let finish = (to3D (pluto.Find ((=) "ZZ")) 0, "ZZ")
-
-    // pluto
-    // let iF = pluto.Filter ((=) "IF") |> Seq.head
-    // print iF
-    // usePortal pluto iF
-
-    // let start = pluto.Find ((=) "AA")
-    // explore pluto ((start, "AA"), 0)
-    
-    // let distances = distances pluto
-    // (distances pluto finish).[finish]
-
-    let distances = distances pluto finish
-    // distances.[finish]
-    distances
-    |> Map.toList
-    |> List.iter print
-    distances.[finish]
+    distances pluto true finish
 
 let Part2 () =
-    ()
+    let pluto = labeledPluto input
+    let finish = (to3D (pluto.Find ((=) "ZZ")) 0, "ZZ")
+    distances pluto false finish
