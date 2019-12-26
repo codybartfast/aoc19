@@ -160,10 +160,78 @@ let labeledPluto input =
         | str -> str
     pluto
 
+let toLines str = Regex.Split(str, @"\r?\n")
+
+let test1a = toLines @"         A           
+         A           
+  #######.#########  
+  #######.........#  
+  #######.#######.#  
+  #######.#######.#  
+  #######.#######.#  
+  #####  B    ###.#  
+BC...##  C    ###.#  
+  ##.##       ###.#  
+  ##...DE  F  ###.#  
+  #####    G  ###.#  
+  #########.#####.#  
+DE..#######...###.#  
+  #.#########.###.#  
+FG..#########.....#  
+  ###########.#####  
+             Z       
+             Z       "    
+
+let test2a = toLines @"             Z L X W       C                 
+             Z P Q B       K                 
+  ###########.#.#.#.#######.###############  
+  #...#.......#.#.......#.#.......#.#.#...#  
+  ###.#.#.#.#.#.#.#.###.#.#.#######.#.#.###  
+  #.#...#.#.#...#.#.#...#...#...#.#.......#  
+  #.###.#######.###.###.#.###.###.#.#######  
+  #...#.......#.#...#...#.............#...#  
+  #.#########.#######.#.#######.#######.###  
+  #...#.#    F       R I       Z    #.#.#.#  
+  #.###.#    D       E C       H    #.#.#.#  
+  #.#...#                           #...#.#  
+  #.###.#                           #.###.#  
+  #.#....OA                       WB..#.#..ZH
+  #.###.#                           #.#.#.#  
+CJ......#                           #.....#  
+  #######                           #######  
+  #.#....CK                         #......IC
+  #.###.#                           #.###.#  
+  #.....#                           #...#.#  
+  ###.###                           #.#.#.#  
+XF....#.#                         RF..#.#.#  
+  #####.#                           #######  
+  #......CJ                       NM..#...#  
+  ###.#.#                           #.###.#  
+RE....#.#                           #......RF
+  ###.###        X   X       L      #.#.#.#  
+  #.....#        F   Q       P      #.#.#.#  
+  ###.###########.###.#######.#########.###  
+  #.....#...#.....#.......#...#.....#.#...#  
+  #####.#.###.#######.#######.###.###.#.#.#  
+  #.......#.......#.#.#.#.#...#...#...#.#.#  
+  #####.###.#####.#.#.#.#.###.###.#.###.###  
+  #.......#.....#.#...#...............#...#  
+  #############.#.#.###.###################  
+               A O F   N                     
+               A A D   M                     "
+
+let to2D (x, y, z) = (x, y), z
+let to3D (x, y) z = (x, y, z)
+let depth (_, _, z) = z
+let isRecursive portal = portal <> "AA" && portal <> "ZZ"
+let isOuter (pluto: Pluto) (x, y, _)=
+    x = 2 || x = pluto.LastCol - 2 ||
+        y = 2 || y = pluto.LastRow - 2
+
 type Location = Wall | Clear | Origin | Oxygen
 type Direction = North | South | West | East
 
-let explore (pluto: Pluto) ((coord, portal), dist) =
+let explore (pluto: Pluto) ((coord, _portal), dist) =
     let nextPosition (x, y) dir =
         match dir with
         | North -> (x, y - 1)
@@ -178,16 +246,36 @@ let explore (pluto: Pluto) ((coord, portal), dist) =
     let reverse = function
         | North -> South | South -> North | West -> East | East -> West
 
-    let rec explore been hist pos dist =
-        let been = Set.add pos been
+    let levelPortal coord portal =
+        let x, y, depth = coord
+        match depth, portal with
+        | 0, "AA" -> Some (coord, portal)
+        | 0, "ZZ" -> Some (coord, portal)
+        | 0, _ when (isOuter pluto coord) -> None
+        | _, "AA" -> None
+        | _, "ZZ" -> None
+        | _  -> Some (coord, portal)
+
+        // | depth, _ when (isOuter pluto coord) -> 
+        //     Some ((x, y, depth - 1), portal)
+        // | depth, _ -> Some ((x, y, depth + 1), portal)
+
+    let rec explore been hist coord dist =
+        let coord, depth = to2D coord
+        let been = Set.add coord been
         [North; South; West; East]
-        |> Seq.map (nextPosition pos)
+        |> Seq.map (nextPosition coord)
         |> Seq.filter (been.Contains >> not)
-        |> Seq.collect (fun nextPos -> 
-            match pluto.Get nextPos with
+        |> Seq.collect (fun nextCoord -> 
+            let nextCoord3D = to3D nextCoord depth
+            match pluto.Get nextCoord with
             | "#" -> Seq.empty
-            | "." -> explore been hist nextPos (dist + 1) 
-            | portal -> Seq.singleton(Some ((nextPos, portal), dist)) )
+            | "." -> explore been hist nextCoord3D (dist + 1) 
+            | portal -> 
+                match levelPortal nextCoord3D portal with
+                | None -> Seq.empty
+                | Some (nextCoord3D, portal) -> 
+                     Seq.singleton(Some ((nextCoord3D, portal), dist)) )
 
     explore Set.empty [] coord 1
     |> Seq.choose id
@@ -202,44 +290,53 @@ let usePortal (pluto: Pluto) =
         |> List.ofSeq
         |> List.groupBy snd
         |> Map
-    fun (coord, label) ->
+    fun ((x, y, depth), label) ->
         portals.[label]
-        |> List.filter (fun (c, _) -> c <> coord)
+        |> List.filter (fun (c, _) -> c <> (x, y))
         |> List.exactlyOne
+        |> fun ((x, y), portal) -> 
+            if isOuter pluto (x, y, depth) then
+                (x, y, depth + 1), portal
+            else
+                (x, y, depth - 1), portal
 
-let distances (pluto: Pluto) = 
+let distances (pluto: Pluto) finish = 
     let usePortal = usePortal pluto
 
-    let rec distances (dists: Map<string,int>) (starts: list<((int * int) * string) * int>) =
-        if starts = [] then dists else
+    let rec distances dists starts =
+        if Map.containsKey finish dists then dists else
 
         let shorter =
             starts
             |> List.collect (explore pluto)
-            |> List.filter (fun ((_, portal), dist) ->
-                not (Map.containsKey portal dists) ||
-                    dist < dists.[portal])
+            |> List.filter (fun ((coord, portal), dist) ->
+                not (Map.containsKey (coord, portal) dists) ||
+                    dist < dists.[coord, portal])
+            |> List.sortDescending
 
         let dists = 
             (dists, shorter)
             ||> List.fold 
-                (fun dists ((_, portal), dist) ->
-                    (Map.add portal dist dists))
+                (fun dists ((coord, portal), dist) ->
+                    (Map.add (coord, portal) dist dists))
  
         shorter
-        |> List.filter (fun ((_, portal), dist) ->
+        |> List.filter (fun (((_, _, z), portal), dist) ->
             portal <> "AA" && portal <> "ZZ")
         |> List.map (fun ((coord, portal), dist) ->
             (usePortal (coord, portal)), dist + 1)
         |> (distances dists)
     
-    let start = pluto.Find ((=) "AA")
-    distances Map.empty [((start, "AA"), 0)]
-
-
+    let startLoc = to3D (pluto.Find ((=) "AA")) 0
+    let startDist = ((startLoc, "AA"), 0)
+    distances 
+        (Map [startDist])
+        [startDist]
 
 let Part1 () =
     let pluto = labeledPluto input
+    let finish = (to3D (pluto.Find ((=) "ZZ")) 0, "ZZ")
+
     // pluto
     // let iF = pluto.Filter ((=) "IF") |> Seq.head
     // print iF
@@ -248,7 +345,15 @@ let Part1 () =
     // let start = pluto.Find ((=) "AA")
     // explore pluto ((start, "AA"), 0)
     
-    (distances pluto).["ZZ"]
+    // let distances = distances pluto
+    // (distances pluto finish).[finish]
+
+    let distances = distances pluto finish
+    // distances.[finish]
+    distances
+    |> Map.toList
+    |> List.iter print
+    distances.[finish]
 
 let Part2 () =
     ()
