@@ -59,12 +59,17 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
 
     let mutable formatItem = (fun x -> x.ToString())
 
+    member _.LastCol = maxX
+    member _.Width = maxX + 1
+    member _.LastRow = maxY
+    member _.Height = maxY + 1
+
     static member Generate<'a when 'a : equality>
         (width, height, gen: int -> int -> 'a) =
             [| for y in 0 .. (height - 1) do
                 [| for x in 0 .. (width - 1) do
-                    gen x y |] |] 
-            |> Grid<'a> 
+                    gen x y |] |]
+            |> Grid<'a>
 
     member _.Item
         with get(x, y) = data.[y].[x]
@@ -74,6 +79,7 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
     member this.AsText(x, y) = this.FormatItem (this.Item(x, y))
 
     member _.Row with get(y) = data.[y]
+    member _.Column with get(x) = data |> Array.map (fun arr -> arr.[x])
     member this.FormatRow = Array.map this.FormatItem >> (String.concat "")
     member this.AsText(y) = this.FormatRow (this.Row(y))
 
@@ -112,11 +118,11 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
         let nhood = this.NHood (x, y)
         Array.append nhood.[0 .. 3] nhood.[5 .. 8]
 
+    member this.BorderingCoords(x, y) =
+        [| (x, y - 1); (x + 1, y); (x, y + 1); (x - 1, y); |]
+
     member this.Bordering(x, y) =
-        [| this.TryGet (x, y - 1);
-           this.TryGet (x + 1, y);
-           this.TryGet (x, y + 1);
-           this.TryGet (x - 1, y); |]
+        this.BorderingCoords(x, y) |> Array.map this.TryGet
 
     member this.Transform<'b  when 'b : equality>
         (generate: Grid<'a> -> int -> int -> 'b) : Grid<'b> =
@@ -125,6 +131,11 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
                     generate this x y |] |]
             |> Grid<'b>
 
+    member this.Crop(x, width, y, height) =
+        data.[y .. (y + height - 1)]
+        |> Array.map (fun row -> row.[x .. (x + width - 1)])
+        |> Grid<'a>
+    
     member _.Corners() = [| (0, 0); (0, maxY); (maxX, maxY); (maxX, 0) |]
     member this.Get((x, y)) = this.[x, y]
     member this.Set((x, y)) value = this.[x, y] <- value
