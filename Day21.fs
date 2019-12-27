@@ -3,11 +3,6 @@ let day = "21"
 
 open System
 open System.IO
-open System.Text.RegularExpressions
-
-let nl = Environment.NewLine
-let print obj= (printfn "%O" obj)
-let tPrint obj = (print obj); obj
 
 let readLines day =
     Path.Combine("inputs", "input" + day + ".txt")
@@ -131,43 +126,34 @@ let spring mode =
 let Part1 () =
     spring "WALK"
         [
-            // // "NOT D J"
-            // "NOT A T"
-            // "AND A T"
-            // "AND T J"
-
-            "NOT A J"
-            "NOT B T"
-            "OR T J"
-            "NOT C T"
-            "OR T J"
-            "AND D J"
+            "NOT A J"   // J: A is gap
+            "NOT B T"   // T: B is gap
+            "OR T J"    // J: A or B is gap
+            "NOT C T"   // T: C is gap
+            "OR T J"    // J: A, B or C s gap
+            "AND D J"   // ... and D is present so jump
         ]
 
 let Part2 () =
     spring "RUN"
         [
-            // "NOT A T"   // clear T and J
-            // "AND A T"
-            // "AND T J"
+            "OR D T"
+            "AND H T"   // T: can Jump twice
 
-            "OR D T"    // safe 1  (D and H)
-            "AND H T"
-
-            "OR D J"    // safe 2  (D, H and I)
+            "OR D J"
             "AND E J"
-            "AND I J"
+            "AND I J"   // J: can Jump, Step then Jump
 
-            "OR T J"    // 9 safe
+            "OR T J"    // J: Looks safe to jump if have to
 
-            "OR J T"
-            "AND B T"
-            "AND C T"   // false if gap in B or C
-            "NOT T T"
+            "OR J T"    // path only matters if J is true, so assume it is
+            "AND B T"   // T: true if B present
+            "AND C T"   // T: true if B and C present
+            "NOT T T"   // T: true if B or C missing
 
             "AND T J"   // upcoming gap and looks safe
 
-            "NOT A T"   // about to fall so just jump!
+            "NOT A T"   // if A missing don't think, jump
 
-            "OR T J"
+            "OR T J"    // jump if A gap or, B or C gap and it looks safe
         ]
