@@ -104,11 +104,11 @@ let controlInverter () =
 
     provideInput, handleOutput, sendInstr
 
-let springApi sendInstr =
+let springApi sendInstr mode =
     fun instructions ->
         instructions
         |> String.concat "\n"
-        |> fun str -> str + "\nWALK\n"
+        |> fun str -> str + sprintf "\n%s\n" mode
         |> fun str -> str.ToCharArray()
         |> Array.map int64
         |> List.ofArray
@@ -122,24 +122,52 @@ let springApi sendInstr =
                 |> Array.map char
                 |> String
 
-
-let Part1 () =
+let spring mode =
     let program = compile code
     let input, output, sendInstr = controlInverter ()
     let run = computer program input output
-    let spring = springApi (sendInstr run)
-    spring [
-        "NOT A T"
-        "AND A T"    
-        "AND T J"
+    springApi (sendInstr run) mode
 
-        "NOT A J"
-        "NOT B T"
-        "OR T J"
-        "NOT C T"
-        "OR T J"
-        "AND D J"
+let Part1 () =
+    spring "WALK"
+        [
+            // // "NOT D J"
+            // "NOT A T"
+            // "AND A T"
+            // "AND T J"
+
+            "NOT A J"
+            "NOT B T"
+            "OR T J"
+            "NOT C T"
+            "OR T J"
+            "AND D J"
         ]
 
 let Part2 () =
-    ()
+    spring "RUN"
+        [
+            // "NOT A T"   // clear T and J
+            // "AND A T"
+            // "AND T J"
+
+            "OR D T"    // safe 1  (D and H)
+            "AND H T"
+
+            "OR D J"    // safe 2  (D, H and I)
+            "AND E J"
+            "AND I J"
+
+            "OR T J"    // 9 safe
+
+            "OR J T"
+            "AND B T"
+            "AND C T"   // false if gap in B or C
+            "NOT T T"
+
+            "AND T J"   // upcoming gap and looks safe
+
+            "NOT A T"   // about to fall so just jump!
+
+            "OR T J"
+        ]
