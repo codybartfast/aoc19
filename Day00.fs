@@ -6,7 +6,7 @@ open System.IO
 open System.Text.RegularExpressions
 
 let nl = Environment.NewLine
-let print obj= (printfn "%O" obj)
+let print obj= (printfn "%A" obj)
 let tPrint obj = (print obj); obj
 
 let readLines day =
