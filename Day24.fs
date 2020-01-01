@@ -13,6 +13,8 @@ let readLines day =
     File.ReadAllLines (Path.Combine("inputs", "input" + day + ".txt"))
 let lines = readLines day
 
+type Cells = int * int * int -> int
+
 type Grid<'a when 'a : equality>(jagged: 'a[][]) =
     // aoc15:18
     let data = jagged
@@ -151,6 +153,109 @@ let Part1 () =
         (None, Set.empty)
     |> Seq.pick fst
 
+let buildGrids (zeroGrid: Eris) =
+    [-201 .. 201]
+    |> List.map (fun i -> i, zeroGrid.Transform (fun _ _ _ -> '.') )
+    |> Map
+    |> Map.add 0 zeroGrid
+
+let getCells (grids: Map<int, Eris>) : Cells = 
+    fun (x, y, z) -> 
+    match grids.[z].[x, y] with
+    | '#' -> 1
+    | '.' -> 0
+
+let count (cells: Cells) coords =
+    coords
+    |> List.sumBy cells
+ 
+
+let topRow (cells: Cells) z = 
+    [(0, 0, z); (1, 0, z); (2, 0, z); (3, 0, z); (4, 0, z)]
+    |> count cells
+
+let rightCol cells z = 
+    [(4, 0, z); (4, 1, z); (4, 2, z); (4, 3, z); (4, 4, z)]
+    |> count cells
+
+let bottomRow cells z = 
+    [(0, 4, z); (1, 4, z); (2, 4, z); (3, 4, z); (4, 4, z)]
+    |> count cells
+
+let leftCol cells z = 
+    [(0, 0, z); (0, 1, z); (0, 2, z); (0, 3, z); (0, 4, z)]
+    |> count cells
+
+let bugCount cells (x, y, z) =
+    let top = 
+        match x, y with
+        | _, 0 -> cells (2, 1, (z - 1))
+        | 2, 3 -> bottomRow cells (z + 1)
+        | _, _ -> cells (x, y - 1, z)
+    let right = 
+        match x, y with
+        | 4, _ -> cells (3, 2, (z - 1))
+        | 1, 2 -> leftCol cells (z + 1)
+        | _, _ -> cells (x + 1, y, z)
+    let bottom = 
+        match x, y with
+        | _, 4 -> cells (2, 3, (z - 1))
+        | 2, 1 -> topRow cells (z + 1)
+        | _, _ -> cells (x, y + 1, z)    
+    let left = 
+        match x, y with
+        | 0, _ -> cells (1, 2, (z - 1))
+        | 3, 2 -> rightCol cells (z + 1)
+        | _, _ -> cells (x - 1, y, z)
+    top + right + bottom + left
+
+let update2 bugCount z =
+    fun (eris: Eris) x y ->
+        match x, y with
+        | 2, 2 -> '?'
+        | _ ->
+            match eris.[x, y], bugCount (x, y, z) with
+            | '#', 1 -> '#'
+            | '#', _ -> '.'
+            | '.', 1 | '.', 2 -> '#'
+            | _ -> '.'
+
+let transform grids =
+    let range = (Map.count grids / 2)
+    let bugCount = bugCount (getCells grids)
+    [-range .. range]
+    |> List.map (fun z ->
+        let newGrid =
+            if abs z = range
+            then grids.[z]
+            else (grids.[z].Transform (update2 bugCount z))
+        z, newGrid)
+    |> Map
+
+let rec multiTransform grids count =
+    match count with
+    | 0 -> grids
+    | _ -> multiTransform (transform grids) (count - 1)
+
+let bugSum (grids: Map<int, Eris>) =
+    grids
+    |> Map.toSeq
+    |> Seq.collect (fun (_, grid) -> grid.Flatern ())
+    |> Seq.filter (snd >> ((=) '#'))
+    |> Seq.length
 
 let Part2 () =
-    ()
+    let grids = buildGrids (toEris lines)
+    let transformed = (multiTransform grids 200)
+    // transformed.Count
+
+    bugSum transformed
+
+    // [-5 .. 5] 
+    // |> List.map (fun i -> transformed.[i])
+    // |> List.iter (fun grid ->
+    //     printfn ""
+    //     print grid
+    //     printfn "")
+    
+  
