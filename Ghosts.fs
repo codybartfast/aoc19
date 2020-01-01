@@ -93,7 +93,7 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
 
     member this.Copy() = this.Transform (fun g x y -> g.[x,y])
 
-    member this.Flatern() =
+    member this.Flatten() =
         seq{ for y in 0 .. maxY do
                 for x in 0 .. maxX do
                      yield ((x, y), data.[y].[x]) }
@@ -103,7 +103,7 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
                 for x in 0 .. maxX do
                      yield (x, y) }
 
-    member this.Filter(pred) = this.Flatern() |> Seq.filter (snd >> pred)
+    member this.Filter(pred) = this.Flatten() |> Seq.filter (snd >> pred)
 
     member this.Find(pred) = this.Filter(pred) |> Seq.head |> fst
 
@@ -135,7 +135,7 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
         data.[y .. (y + height - 1)]
         |> Array.map (fun row -> row.[x .. (x + width - 1)])
         |> Grid<'a>
-    
+
     member _.Corners() = [| (0, 0); (0, maxY); (maxX, maxY); (maxX, 0) |]
     member this.Get((x, y)) = this.[x, y]
     member this.Set((x, y)) value = this.[x, y] <- value
@@ -146,7 +146,7 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
 
 type Thingy = Grid<char>
 
-let thingyGrid =
+let toThingy =
     Array.map (fun (s: string) -> s.ToCharArray())
     >> Thingy
 
