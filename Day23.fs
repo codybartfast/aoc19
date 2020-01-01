@@ -111,15 +111,28 @@ let computer program readInput writeOutput =
     program |> Array.iteri write
     step
 
-let networkComputer program address =
+type Computer = (
+    (unit -> bool) * 
+    (unit -> (int64 * (int64 * int64)) option) * 
+    (int64 * int64 -> unit) *
+    (unit -> bool))
+
+type Computers = Map<Int64, Computer>
+
+let networkComputer program address : Computer =
+    let mutable idleCount = 0
     let inBuff = Queue<int64> ()
     let outBuff = Queue<int64> ()
 
-    let write = inBuff.Enqueue
+    let write (x, y) =  inBuff.Enqueue x; inBuff.Enqueue y
     let provideInput () = 
         match inBuff.TryDequeue () with
-        | false, _ -> -1L
-        | true, item -> item
+        | false, _ -> 
+            idleCount <- idleCount + 1
+            -1L
+        | true, item -> 
+            idleCount <- 0
+            item
        
     let handleOutput = outBuff.Enqueue
     let read () =
@@ -129,47 +142,83 @@ let networkComputer program address =
         else
             None
 
-    write address
+    let isIdle () = idleCount > 9
+
+    inBuff.Enqueue address
     let step = computer program provideInput handleOutput
-    (step, read, write)
+    (step, read, write, isIdle)
 
-let computers program =
-    [0L .. 49L]
-    |> List.map (fun i -> i, networkComputer program i)
-    |> Map
+let nat () =
+    let mutable lastRecd = (Int64.MinValue, Int64.MinValue)
+    let mutable lastYSent = Int64.MinValue
+    let mutable wereIdle = false
+    let mutable wake = false
+    let read () =
+        if wake then
+            if lastYSent = (snd lastRecd) then 
+              failwithf 
+                "Craftsman use Exceptions for return values don't they?  %i" 
+                lastYSent
+            wake <- false
+            lastYSent <- snd lastRecd
+            // print lastYSent
+            Some (0L, lastRecd)
+        else 
+            None
 
-let run (computers) cycles =
+    let write recd = lastRecd <- recd
+
+    let monitor (computers: Computers) =
+        let areIdle =
+            computers
+            |> Map.toList
+            |> List.map (fun(_, (_, _, _, isIdle)) -> isIdle)
+            |> List.forall (fun isIdle -> isIdle ())
+        if areIdle then             
+            if not wereIdle then 
+                wake <- true
+            wereIdle <- true
+        else
+            wereIdle <- false
+
+    let natComputer : Computer = 
+        ((fun () -> true), read, write, (fun () -> true))
+    natComputer, monitor 
+    
+let buildComputers program =
+    let computers = 
+        [0L .. 49L]
+        |> List.map (fun i -> i, networkComputer program i)
+        |> Map
+    let natComputer, monitor = nat ()
+    (computers.Add (255L, natComputer)), monitor
+
+let run (computers: Computers) cycles =
     let cycles = [1 .. cycles]
     computers
     |> Map.toList
-    |> List.iter (fun (_, (step, _, _)) ->
+    |> List.iter (fun (_, (step, _, _, _)) ->
        cycles |> List.iter (fun _ -> step () |> ignore) ) 
 
-let sendPackets computers =
-    let sent =
-        computers
-        |> Map.toList
-        |> List.map (fun (source, (_, read, _)) -> read ())
-        |> List.choose id
-    match List.tryFind (fst >> ((=) 255L)) sent with
-    | Some (_, (_, y)) -> Some y
-    | None ->
-        sent
-        |> List.iter (fun (addr, (x, y)) ->
-            let _, _, write = computers.[addr]
-            write x
-            write y )
-        None
+let sendPackets (computers: Computers) monitor =
+    computers
+    |> Map.toList
+    |> List.map (fun (source, (_, read, _, _)) -> read ())
+    |> List.choose id
+    |> List.iter (fun (addr, (x, y)) ->
+        let _, _, write, _ = computers.[addr]
+        write (x, y))
+    monitor computers
+    
 
-let rec runSend computers cycles =
+let rec runSend (computers: Computers) cycles monitor =
     run computers cycles
-    match sendPackets computers with
-    | Some y -> y
-    | None -> runSend computers cycles
+    sendPackets computers monitor
+    runSend computers cycles monitor
 
 let Part1 () =
-    let computers = computers (compile code)
-    runSend computers 50
+    let computers, monitor = buildComputers (compile code)
+    runSend computers 50 monitor
 
 
 
