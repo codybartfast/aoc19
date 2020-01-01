@@ -87,7 +87,7 @@ let computer program readInput writeOutput =
     let step () =
         if running then
             let ptr = ptrOnPause
-            if halt ptr 
+            if halt ptr
             then running <- false
             else ptrOnPause <- ((operation ptr) ptr)
             running
@@ -112,12 +112,17 @@ let computer program readInput writeOutput =
     step
 
 type Computer = (
-    (unit -> bool) * 
-    (unit -> (int64 * (int64 * int64)) option) * 
+    (unit -> bool) *
+    (unit -> (int64 * (int64 * int64)) option) *
     (int64 * int64 -> unit) *
     (unit -> bool))
 
 type Computers = Map<Int64, Computer>
+
+let cycle ((cycle, _, _, _) : Computer) = cycle ()
+let read ((_, read, _, _) : Computer) = read ()
+let write ((_, _, write, _) : Computer) packet = write packet
+let isIdle ((_, _, _, isIdle) : Computer) = isIdle ()
 
 let networkComputer program address : Computer =
     let mutable idleCount = 0
@@ -125,19 +130,19 @@ let networkComputer program address : Computer =
     let outBuff = Queue<int64> ()
 
     let write (x, y) =  inBuff.Enqueue x; inBuff.Enqueue y
-    let provideInput () = 
+    let provideInput () =
         match inBuff.TryDequeue () with
-        | false, _ -> 
+        | false, _ ->
             idleCount <- idleCount + 1
             -1L
-        | true, item -> 
+        | true, item ->
             idleCount <- 0
             item
-       
+
     let handleOutput = outBuff.Enqueue
     let read () =
         if outBuff.Count >= 3 then
-            Some (outBuff.Dequeue (), 
+            Some (outBuff.Dequeue (),
                     (outBuff.Dequeue (), outBuff.Dequeue ()))
         else
             None
@@ -150,20 +155,18 @@ let networkComputer program address : Computer =
 
 let nat () =
     let mutable lastRecd = (Int64.MinValue, Int64.MinValue)
+    let mutable firstYSent = Int64.MinValue
     let mutable lastYSent = Int64.MinValue
     let mutable wereIdle = false
     let mutable wake = false
+
     let read () =
         if wake then
-            if lastYSent = (snd lastRecd) then 
-              failwithf 
-                "Craftsman use Exceptions for return values don't they?  %i" 
-                lastYSent
             wake <- false
+            if firstYSent < 0L then firstYSent <- snd lastRecd
             lastYSent <- snd lastRecd
-            // print lastYSent
             Some (0L, lastRecd)
-        else 
+        else
             None
 
     let write recd = lastRecd <- recd
@@ -174,19 +177,19 @@ let nat () =
             |> Map.toList
             |> List.map (fun(_, (_, _, _, isIdle)) -> isIdle)
             |> List.forall (fun isIdle -> isIdle ())
-        if areIdle then             
-            if not wereIdle then 
-                wake <- true
-            wereIdle <- true
-        else
-            wereIdle <- false
+        let becameIdle = areIdle && not wereIdle
+        wereIdle <- areIdle
+        match becameIdle, lastYSent = (snd lastRecd) with
+        | true, true -> Some (firstYSent, lastYSent)
+        | true, _ -> wake <- true; None
+        | _ -> None
 
-    let natComputer : Computer = 
+    let natComputer : Computer =
         ((fun () -> true), read, write, (fun () -> true))
-    natComputer, monitor 
-    
+    natComputer, monitor
+
 let buildComputers program =
-    let computers = 
+    let computers =
         [0L .. 49L]
         |> List.map (fun i -> i, networkComputer program i)
         |> Map
@@ -197,30 +200,28 @@ let run (computers: Computers) cycles =
     let cycles = [1 .. cycles]
     computers
     |> Map.toList
-    |> List.iter (fun (_, (step, _, _, _)) ->
-       cycles |> List.iter (fun _ -> step () |> ignore) ) 
+    |> List.iter (fun (_, comp) ->
+       cycles |> List.iter (fun _ -> cycle comp |> ignore) )
 
 let sendPackets (computers: Computers) monitor =
     computers
     |> Map.toList
-    |> List.map (fun (source, (_, read, _, _)) -> read ())
+    |> List.map (fun (_, comp) -> read comp)
     |> List.choose id
-    |> List.iter (fun (addr, (x, y)) ->
-        let _, _, write, _ = computers.[addr]
-        write (x, y))
+    |> List.iter (fun (addr, payload) ->
+        write computers.[addr] payload )
     monitor computers
-    
 
 let rec runSend (computers: Computers) cycles monitor =
     run computers cycles
-    sendPackets computers monitor
-    runSend computers cycles monitor
+    match sendPackets computers monitor with
+    | Some rslt -> rslt
+    | None -> runSend computers cycles monitor
 
-let Part1 () =
+let first, double =
     let computers, monitor = buildComputers (compile code)
     runSend computers 50 monitor
 
+let Part1 () = first
 
-
-let Part2 () =
-    ()
+let Part2 () = double
