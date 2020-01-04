@@ -134,7 +134,7 @@ type Triton = Grid<char>
 let tritonGrid =
     Array.map (fun (s: string) -> s.ToCharArray())
     >> Triton
-    
+
 let readLines day =
     File.ReadAllLines (Path.Combine("inputs", "input" + day + ".txt"))
 let input = readLines day
@@ -147,12 +147,12 @@ let isDoor = Char.IsUpper
 let isKey = Char.IsLower
 let keyForDoor = Char.ToLower
 
-let things (triton: Triton) = 
+let things (triton: Triton) =
     triton.Filter (fun x -> x <> '.' && x <> '#')
     |> Seq.map (fun (x, y) -> y, x)
     |> Map
 
-let keys things = 
+let keys things =
     things
     |> Map.toList
     |> List.map fst
@@ -201,7 +201,7 @@ let overview triton start =
     |> Map
 
 let paths overview keyCount =
-    let paths = 
+    let paths =
         overview
         |> Map.toSeq
         |> Seq.filter (fst >> isKey)
@@ -221,7 +221,7 @@ let tunnels paths =
     let paths =
         paths
         |> Map.toList
-        |> List.map snd 
+        |> List.map snd
         |> List.sortByDescending id
     let rec tunnels keep (paths: char list list) =
         match paths with
@@ -265,7 +265,7 @@ let reqdKeys paths key =
     |> deDup
 
 let reachable tunnels allKeys keysHeld =
-    let wanted = Set.difference allKeys keysHeld      
+    let wanted = Set.difference allKeys keysHeld
     let reachable =
         tunnels
             |> List.collect (List.takeWhile (fun chr ->
@@ -277,19 +277,19 @@ let nextKey (keysHeld: Set<char>) reqdKeys =
     reqdKeys |> List.find (keysHeld.Contains >> not)
 
 let findDist1 triton (overview: Map<char,list<char> * int>) =
-    let heads = 
+    let heads =
         overview
         |> Map.toList
         |> List.map (snd >> fst >> List.head)
         |> Set
 
-    let startToHeads = 
+    let startToHeads =
         heads
-        |> Seq.map (fun h -> 
+        |> Seq.map (fun h ->
             let _, d = overview.[h]
             (('@', h), d))
 
-    let headsToHeads = 
+    let headsToHeads =
         let headToHeads (loc, head) =
             explore triton loc (heads.Contains) false
             |> List.map (fun (other, (_, d)) -> ((head, other), d))
@@ -300,7 +300,7 @@ let findDist1 triton (overview: Map<char,list<char> * int>) =
     let known =
         Seq.append startToHeads headsToHeads
         |> Seq.fold (fun m (k, v) -> Map.add k v m) Map.empty
-    
+
     let head a = overview.[a] |> (fst >> List.head)
     let dist a = overview.[a] |> snd
     let depth a = (dist a) - (dist (head a))
@@ -318,7 +318,7 @@ let findDist1 triton (overview: Map<char,list<char> * int>) =
 
     fun a b ->
         if a = b then 0
-        elif a = '@' then 
+        elif a = '@' then
             known.[(a, head b)] + depth b
         else
             let aHead, bHead =  head a, head b
@@ -336,42 +336,43 @@ let findDist2 distTable a b =
     if a = b then 0
     elif a < b then Map.find (a,b) distTable
     else distTable.[b, a]
-     
+
 let routeLength findDist route =
     route
     |> List.pairwise
     |> List.sumBy (fun (a, b) -> findDist a b)
-    
+
 
 let collect (triton: Triton) =
-
     let things = things triton
-
     let start = things.['@']
     let overview = overview triton start
     let allKeys = Set <| keys things
     let paths = paths overview (allKeys.Count)
-    let tunnels = tunnels paths 
+    let tunnels = tunnels paths
     let findDist1 = findDist1 triton overview
- 
+
     let distTable = distTable findDist1 (allKeys.Add '@')
     let findDist = findDist2 distTable
-    let furthestKey = furthestKey overview    
+    
+    let finalKey = furthestKey overview
+    let reqdKeys = reqdKeys paths finalKey
+    let targetKeys = Set reqdKeys
 
     let rec collect (dist: int) keysHeld here = seq{
-        if keysHeld = allKeys then yield dist else
+        if keysHeld = targetKeys then yield dist else
 
-        let reachable = reachable tunnels allKeys keysHeld
-        let unreachableReqdKeys = 
-            reqdKeys paths furthestKey
-            |> List.skipWhile (fun k -> 
+        let reachable = reachable tunnels targetKeys keysHeld
+        let unreachableReqdKeys =
+            reqdKeys
+            |> List.skipWhile (fun k ->
                 reachable.Contains k || keysHeld.Contains k)
         let routes =
             match unreachableReqdKeys with
-            | [] -> 
+            | [] ->
                 permutations (Set.toList reachable)
                 |> List.map (fun route ->  here::route)
-            | h::_ -> 
+            | h::_ ->
                 permutations (Set.toList reachable)
                 |> List.map (fun route -> here::(List.append route [h]))
         let route = routes |> List.minBy (routeLength findDist)
@@ -384,20 +385,14 @@ let collect (triton: Triton) =
                 (dist + (findDist here next))
                 (keysHeld.Add next)
                 next}
-           
+
     collect 0 Set.empty '@'
 
-
-
-
-let Part1 () = 
+let Part1 () =
     let triton = buildTriton input
     collect triton
 
 
-    
 let Part2 () = ()
     // let triton = buildTriton input
     // collect triton
-
-
