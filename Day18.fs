@@ -135,13 +135,6 @@ let tritonGrid =
     Array.map (fun (s: string) -> s.ToCharArray())
     >> Triton
     
-let parseLine (line: string) =
-    Regex.Match(line, @"(.*)")
-    |> fun (m: Match) ->
-        let grp (idx: int) = m.Groups.[idx].Value
-        let grpi = grp >> int
-        grp 1
-
 let readLines day =
     File.ReadAllLines (Path.Combine("inputs", "input" + day + ".txt"))
 let input = readLines day
@@ -153,6 +146,18 @@ type Direction = North | South | West | East
 let isDoor = Char.IsUpper
 let isKey = Char.IsLower
 let keyForDoor = Char.ToLower
+
+let things (triton: Triton) = 
+    triton.Filter (fun x -> x <> '.' && x <> '#')
+    |> Seq.map (fun (x, y) -> y, x)
+    |> Map
+
+let keys things = 
+    things
+    |> Map.toList
+    |> List.map fst
+    |> List.filter isKey
+    |> List.sort
 
 let explore (triton: Triton) start isTarget contOnFind =
     let nextPosition (x, y) dir =
@@ -271,7 +276,7 @@ let reachable tunnels allKeys keysHeld =
 let nextKey (keysHeld: Set<char>) reqdKeys =
     reqdKeys |> List.find (keysHeld.Contains >> not)
 
-let findDist triton (overview: Map<char,list<char> * int>) =
+let findDist1 triton (overview: Map<char,list<char> * int>) =
     let heads = 
         overview
         |> Map.toList
@@ -321,21 +326,37 @@ let findDist triton (overview: Map<char,list<char> * int>) =
             then known.[(aHead, bHead)] + depth a + depth b
             else diff a b
 
+let distTable findDist keys =
+    [for a in keys do for b in keys do (a, b)]
+    |> List.filter (fun (a, b) -> a < b)
+    |> List.map (fun (a, b) -> (a, b), findDist a b)
+    |> Map
+
+let findDist2 distTable a b =
+    if a = b then 0
+    elif a < b then Map.find (a,b) distTable
+    else distTable.[b, a]
+     
 let routeLength findDist route =
     route
     |> List.pairwise
     |> List.sumBy (fun (a, b) -> findDist a b)
     
+
 let collect (triton: Triton) =
 
-    let start = triton.Find ((=) '@')
+    let things = things triton
+
+    let start = things.['@']
     let overview = overview triton start
-    let allKeys = triton.Filter isKey |> Seq.map snd |> Set
+    let allKeys = Set <| keys things
     let paths = paths overview (allKeys.Count)
     let tunnels = tunnels paths 
-    let findDist = findDist triton overview
-    let furthestKey = furthestKey overview
-    
+    let findDist1 = findDist1 triton overview
+ 
+    let distTable = distTable findDist1 (allKeys.Add '@')
+    let findDist = findDist2 distTable
+    let furthestKey = furthestKey overview    
 
     let rec collect (dist: int) keysHeld here = seq{
         if keysHeld = allKeys then yield dist else
@@ -367,11 +388,16 @@ let collect (triton: Triton) =
     collect 0 Set.empty '@'
 
 
-let Part1 () = ()
 
-    
-let Part2 () =
+
+let Part1 () = 
     let triton = buildTriton input
     collect triton
+
+
+    
+let Part2 () = ()
+    // let triton = buildTriton input
+    // collect triton
 
 
