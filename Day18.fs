@@ -241,6 +241,15 @@ let furthestKey overview =
     |> List.head
     |> fst
 
+let chooseKey overview =
+    let keyCount = 
+        overview
+        |> Map.toList
+        |> List.filter (fst >> isKey)
+        |> List.length
+    match keyCount with
+    | 26 -> 'w'
+
 let reqdKeys paths key =
     let deDup items =
         let rec deDup seen deDupped items =
@@ -337,62 +346,120 @@ let findDist2 distTable a b =
     elif a < b then Map.find (a,b) distTable
     else distTable.[b, a]
 
-let routeLength findDist route =
+let routeLength (findDist: 'a -> 'a -> int) (route: List<'a>) =
     route
     |> List.pairwise
     |> List.sumBy (fun (a, b) -> findDist a b)
 
+let collect findDist paths terminus =
+    let tunnels = tunnels paths
+    let targetKeys = Set <| reqdKeys paths terminus
 
-let collect (triton: Triton) =
+    let rec collect (dist: int) keysHeld here = seq{
+        let keysHeldSet = Set keysHeld
+        if keysHeldSet = targetKeys then yield (dist, keysHeld) else
+
+        let reachable = reachable tunnels targetKeys keysHeldSet
+        yield!
+            reachable
+            |> Seq.collect (fun key ->
+                collect
+                    (dist + findDist here key)
+                    (key::keysHeld)
+                    key) }
+                 
+    collect 0 [] '@'
+    |> Seq.minBy fst
+    |> snd
+    |> List.rev
+    |> fun lst -> '@'::lst
+    // |> Array.ofList
+    // |> String
+
+let merge length route1 route2 =
+    let isCmn = (Set.intersect (Set route1) (Set route2)).Contains
+    let section route = 
+        let section = route |> List.takeWhile (isCmn >> not)
+        section, (route |> List.skip section.Length)
+
+    let mergeSection inner outer =
+        let rec merge rslt inner outer = seq{
+            match inner, outer with
+            | [], [] -> yield rslt
+            | [], h::t -> yield! merge (h::rslt) inner t
+            | _::_, [] -> failwith "didn't expect this"
+            | h::t, [a] ->  yield! merge (h::rslt) t [a]
+            | h1::t1, h2::t2 -> 
+                yield! merge (h1::rslt) t1 (h2::t2)
+                yield! merge (h2::rslt) (h1::t1) t2 }
+        merge [] inner (List.tail outer)
+        |> Seq.minBy (fun lst -> length (outer.Head::lst))
+        // |> fun lst -> List.take (lst.Length - 1) lst 
+
+    let rec merge rslt route1 route2 =
+        match route1, route2 with
+        | [], [] -> rslt 
+        | h::tail, [] -> merge (h::rslt) tail route2
+        | [], h::tail -> merge (h::rslt) route1 tail
+        | h1::tail1, h2::tail2 when isCmn h1 && isCmn h2 ->
+            assert (h1 = h2)
+            merge (h1::rslt) tail1 tail2
+        | h1::_, h2::tail2 when isCmn h1 ->
+            merge (h2::rslt) route1 tail2
+        | h1::tail1, h2::_ when isCmn h2 ->
+            merge (h1::rslt) tail1 route2
+        | _ ->
+            let prev = rslt.Head
+            match section route1, section route2 with
+            | (unc1, h1::t1), (unc2, h2::t2) -> 
+                let mergedSection = 
+                    mergeSection
+                        unc1
+                        (prev::(List.append unc2 [h2]))
+                merge 
+                    (List.append mergedSection.Tail rslt)
+                    (h1::t1)
+                    (h2::t2)
+            | (unc1, []), (unc2, []) ->
+                let ms1 = mergeSection unc1 (prev::unc2)
+                let ms2 = mergeSection unc2 (prev::unc1)
+                let mergedSection = 
+                    if length ms1 <= length ms2 then ms1 else ms2
+                List.append mergedSection rslt
+            | _ -> failwith "didn't expect this"
+            
+    List.rev <| merge [] route1 route2   
+
+
+let Part1 () =
+    let triton = buildTriton input
     let things = things triton
     let start = things.['@']
     let overview = overview triton start
     let allKeys = Set <| keys things
     let paths = paths overview (allKeys.Count)
     let tunnels = tunnels paths
+    let termini = tunnels |> List.map List.last
+
     let findDist1 = findDist1 triton overview
 
     let distTable = distTable findDist1 (allKeys.Add '@')
     let findDist = findDist2 distTable
+
+    let routes =
+        termini
+        |> List.map (fun terminus ->
+            collect findDist paths terminus)
+        |> List.sortByDescending List.length
+    // routes        
+
+    let routeLength = routeLength findDist
+    routes
+    |> List.reduce (merge routeLength)
+    |> routeLength
+
+
+let Part2 () = 
+    () //checkConsistent [1; 2; 3] [3; 5; 2]
+
     
-    let finalKey = furthestKey overview
-    let reqdKeys = reqdKeys paths finalKey
-    let targetKeys = Set reqdKeys
-
-    let rec collect (dist: int) keysHeld here = seq{
-        if keysHeld = targetKeys then yield dist else
-
-        let reachable = reachable tunnels targetKeys keysHeld
-        let unreachableReqdKeys =
-            reqdKeys
-            |> List.skipWhile (fun k ->
-                reachable.Contains k || keysHeld.Contains k)
-        let routes =
-            match unreachableReqdKeys with
-            | [] ->
-                permutations (Set.toList reachable)
-                |> List.map (fun route ->  here::route)
-            | h::_ ->
-                permutations (Set.toList reachable)
-                |> List.map (fun route -> here::(List.append route [h]))
-        let route = routes |> List.minBy (routeLength findDist)
-        let next = route |> List.item 1
-
-        // printfn  " -> %A" next
-        // printfn "h: %A; r: %A; u:%A" keysHeld reachable unreachableReqdKeys
-
-        yield! collect
-                (dist + (findDist here next))
-                (keysHeld.Add next)
-                next}
-
-    collect 0 Set.empty '@'
-
-let Part1 () =
-    let triton = buildTriton input
-    collect triton
-
-
-let Part2 () = ()
-    // let triton = buildTriton input
-    // collect triton
