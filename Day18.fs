@@ -44,16 +44,6 @@ let test1e = toLines @"########################
 ###g#h#i################
 ########################"
 
-let rec permutations list =
-    // aoc15:13
-    let rec insertAlong i list =
-        match list with
-        | [] -> [[i]]
-        | h::t -> (i::list)::(List.map (fun sub -> h::sub) (insertAlong i t))
-    match list with
-    | [] -> [[]]
-    | head::tail -> List.collect (insertAlong head) (permutations tail)
-
 type Grid<'a when 'a : equality>(jagged: 'a[][]) =
     // aoc15:18
     let data = jagged
@@ -147,18 +137,6 @@ let isDoor = Char.IsUpper
 let isKey = Char.IsLower
 let keyForDoor = Char.ToLower
 
-let things (triton: Triton) =
-    triton.Filter (fun x -> x <> '.' && x <> '#')
-    |> Seq.map (fun (x, y) -> y, x)
-    |> Map
-
-let keys things =
-    things
-    |> Map.toList
-    |> List.map fst
-    |> List.filter isKey
-    |> List.sort
-
 let explore (triton: Triton) start isTarget contOnFind =
     let nextPosition (x, y) dir =
         match dir with
@@ -196,18 +174,17 @@ let explore (triton: Triton) start isTarget contOnFind =
     |> Seq.map (fun (_, keys) -> keys |> Seq.minBy snd)
     |> List.ofSeq
 
-let overview triton start =
+let overview (triton: Triton) start =
     explore triton start (Char.IsLetter) true
     |> Map
 
-let paths overview keyCount =
+let paths overview =
     let paths =
         overview
         |> Map.toSeq
         |> Seq.filter (fst >> isKey)
         |> Seq.map (fun (key, (path, _)) -> (key, path))
         |> Map
-    assert (paths.Count = keyCount)
     paths
 
 let rec startsWith list1 list2 =
@@ -231,24 +208,6 @@ let tunnels paths =
         | a::b::c -> tunnels (a::keep) (b::c)
     tunnels [] paths
     |> List.rev
-
-let furthestKey overview =
-    overview
-    |> Map.toList
-    |> List.filter (fst >> isKey)
-    // |> List.sortByDescending (snd >> snd)
-    |> List.sortByDescending (snd >> fst >> List.length)
-    |> List.head
-    |> fst
-
-let chooseKey overview =
-    let keyCount = 
-        overview
-        |> Map.toList
-        |> List.filter (fst >> isKey)
-        |> List.length
-    match keyCount with
-    | 26 -> 'w'
 
 let reqdKeys paths key =
     let deDup items =
@@ -282,74 +241,90 @@ let reachable tunnels allKeys keysHeld =
             |> Set
     Set.intersect wanted reachable
 
-let nextKey (keysHeld: Set<char>) reqdKeys =
-    reqdKeys |> List.find (keysHeld.Contains >> not)
+let places (triton: Triton) =
+    triton.Filter (fun x -> x <> '.' && x <> '#')
+    |> Seq.map (fun (x, y) -> y, x)
+    |> Map
 
-let findDist1 triton (overview: Map<char,list<char> * int>) =
-    let heads =
-        overview
-        |> Map.toList
-        |> List.map (snd >> fst >> List.head)
-        |> Set
+let keys places =
+    places
+    |> Map.toList
+    |> List.map fst
+    |> List.filter isKey
+    |> List.sort
 
-    let startToHeads =
-        heads
-        |> Seq.map (fun h ->
-            let _, d = overview.[h]
-            (('@', h), d))
+let distance (triton: Triton) =
+    let places = places triton
+    let overview = overview triton places.['@']
+    let keys = keys places
 
-    let headsToHeads =
-        let headToHeads (loc, head) =
-            explore triton loc (heads.Contains) false
-            |> List.map (fun (other, (_, d)) -> ((head, other), d))
-        let coords = triton.Filter (heads.Contains)
-        coords
-        |> Seq.collect headToHeads
+    let calcDist =
+        let heads =
+            overview
+            |> Map.toList
+            |> List.map (snd >> fst >> List.head)
+            |> Set
 
-    let known =
-        Seq.append startToHeads headsToHeads
-        |> Seq.fold (fun m (k, v) -> Map.add k v m) Map.empty
+        let startToHeads =
+            heads
+            |> Seq.map (fun h ->
+                let _, d = overview.[h]
+                (('@', h), d))
 
-    let head a = overview.[a] |> (fst >> List.head)
-    let dist a = overview.[a] |> snd
-    let depth a = (dist a) - (dist (head a))
-    let path a = overview.[a] |> fst
+        let headsToHeads =
+            let headToHeads (loc, head) =
+                explore triton loc (heads.Contains) false
+                |> List.map (fun (other, (_, d)) -> ((head, other), d))
+            let coords = triton.Filter (heads.Contains)
+            coords
+            |> Seq.collect headToHeads
 
-    let diff a b =
-        if startsWith (path a) (path b)
-        then depth a - depth b
-        elif startsWith (path b) (path a)
-        then depth b - depth a
-        else
-            let loc = triton.Find ((=) a)
-            explore triton loc ((=) b) false
-                |> List.head |> snd |> snd
+        let known =
+            Seq.append startToHeads headsToHeads
+            |> Seq.fold (fun m (k, v) -> Map.add k v m) Map.empty
+
+        let head a = overview.[a] |> (fst >> List.head)
+        let dist a = overview.[a] |> snd
+        let depth a = (dist a) - (dist (head a))
+        let path a = overview.[a] |> fst
+
+        let diff a b =
+            if startsWith (path a) (path b)
+            then depth a - depth b
+            elif startsWith (path b) (path a)
+            then depth b - depth a
+            else
+                let loc = triton.Find ((=) a)
+                explore triton loc ((=) b) false
+                    |> List.head |> snd |> snd
+
+        fun a b ->
+            if a = b then 0
+            elif a = '@' then
+                known.[(a, head b)] + depth b
+            else
+                let aHead, bHead =  head a, head b
+                if aHead <> bHead
+                then known.[(aHead, bHead)] + depth a + depth b
+                else diff a b
+
+    let placesOfInterest = '@'::keys
+
+    let distTable =
+        [for a in placesOfInterest do for b in placesOfInterest do (a, b)]
+        |> List.filter (fun (a, b) -> a < b)
+        |> List.map (fun (a, b) -> (a, b), calcDist a b)
+        |> Map
 
     fun a b ->
         if a = b then 0
-        elif a = '@' then
-            known.[(a, head b)] + depth b
-        else
-            let aHead, bHead =  head a, head b
-            if aHead <> bHead
-            then known.[(aHead, bHead)] + depth a + depth b
-            else diff a b
+        elif a < b then Map.find (a,b) distTable
+        else distTable.[b, a]
 
-let distTable findDist keys =
-    [for a in keys do for b in keys do (a, b)]
-    |> List.filter (fun (a, b) -> a < b)
-    |> List.map (fun (a, b) -> (a, b), findDist a b)
-    |> Map
-
-let findDist2 distTable a b =
-    if a = b then 0
-    elif a < b then Map.find (a,b) distTable
-    else distTable.[b, a]
-
-let routeLength (findDist: 'a -> 'a -> int) (route: List<'a>) =
+let routeLength (distance: 'a -> 'a -> int) (route: List<'a>) =
     route
     |> List.pairwise
-    |> List.sumBy (fun (a, b) -> findDist a b)
+    |> List.sumBy (fun (a, b) -> distance a b)
 
 let collect findDist paths terminus =
     let tunnels = tunnels paths
@@ -367,18 +342,17 @@ let collect findDist paths terminus =
                     (dist + findDist here key)
                     (key::keysHeld)
                     key) }
-                 
+
     collect 0 [] '@'
     |> Seq.minBy fst
     |> snd
     |> List.rev
     |> fun lst -> '@'::lst
-    // |> Array.ofList
-    // |> String
 
-let merge length route1 route2 =
+let merge findDist route1 route2 =
+    let routeLen = routeLength findDist
     let isCmn = (Set.intersect (Set route1) (Set route2)).Contains
-    let section route = 
+    let section route =
         let section = route |> List.takeWhile (isCmn >> not)
         section, (route |> List.skip section.Length)
 
@@ -389,16 +363,15 @@ let merge length route1 route2 =
             | [], h::t -> yield! merge (h::rslt) inner t
             | _::_, [] -> failwith "didn't expect this"
             | h::t, [a] ->  yield! merge (h::rslt) t [a]
-            | h1::t1, h2::t2 -> 
+            | h1::t1, h2::t2 ->
                 yield! merge (h1::rslt) t1 (h2::t2)
                 yield! merge (h2::rslt) (h1::t1) t2 }
         merge [] inner (List.tail outer)
-        |> Seq.minBy (fun lst -> length (outer.Head::lst))
-        // |> fun lst -> List.take (lst.Length - 1) lst 
+        |> Seq.minBy (fun lst -> routeLen (outer.Head::lst))
 
     let rec merge rslt route1 route2 =
         match route1, route2 with
-        | [], [] -> rslt 
+        | [], [] -> rslt
         | h::tail, [] -> merge (h::rslt) tail route2
         | [], h::tail -> merge (h::rslt) route1 tail
         | h1::tail1, h2::tail2 when isCmn h1 && isCmn h2 ->
@@ -411,55 +384,46 @@ let merge length route1 route2 =
         | _ ->
             let prev = rslt.Head
             match section route1, section route2 with
-            | (unc1, h1::t1), (unc2, h2::t2) -> 
-                let mergedSection = 
+            | (unc1, h1::t1), (unc2, h2::t2) ->
+                let mergedSection =
                     mergeSection
                         unc1
                         (prev::(List.append unc2 [h2]))
-                merge 
+                merge
                     (List.append mergedSection.Tail rslt)
                     (h1::t1)
                     (h2::t2)
             | (unc1, []), (unc2, []) ->
                 let ms1 = mergeSection unc1 (prev::unc2)
                 let ms2 = mergeSection unc2 (prev::unc1)
-                let mergedSection = 
-                    if length ms1 <= length ms2 then ms1 else ms2
+                let mergedSection =
+                    if routeLen ms1 <= routeLen ms2 then ms1 else ms2
                 List.append mergedSection rslt
             | _ -> failwith "didn't expect this"
-            
-    List.rev <| merge [] route1 route2   
 
+    List.rev <| merge [] route1 route2
 
 let Part1 () =
     let triton = buildTriton input
-    let things = things triton
-    let start = things.['@']
-    let overview = overview triton start
-    let allKeys = Set <| keys things
-    let paths = paths overview (allKeys.Count)
-    let tunnels = tunnels paths
-    let termini = tunnels |> List.map List.last
+    let places = places triton
+    let overview = overview triton places.['@']
+    let paths = paths overview 
+    let termini = paths |> tunnels |> List.map List.last
 
-    let findDist1 = findDist1 triton overview
-
-    let distTable = distTable findDist1 (allKeys.Add '@')
-    let findDist = findDist2 distTable
+    let distance = distance triton
 
     let routes =
         termini
         |> List.map (fun terminus ->
-            collect findDist paths terminus)
+            collect distance paths terminus)
         |> List.sortByDescending List.length
-    // routes        
 
-    let routeLength = routeLength findDist
+    let routeLength = routeLength distance
     routes
-    |> List.reduce (merge routeLength)
+    |> List.reduce (merge distance)
     |> routeLength
 
 
-let Part2 () = 
-    () //checkConsistent [1; 2; 3] [3; 5; 2]
-
-    
+let Part2 () =
+    ()
+    //patch
