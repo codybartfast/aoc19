@@ -44,6 +44,40 @@ let test1e = toLines @"########################
 ###g#h#i################
 ########################"
 
+let test2a = toLines @"#######
+#a.#Cd#
+##@#@##
+#######
+##@#@##
+#cB#Ab#
+#######"
+
+let test2b = toLines @"###############
+#d.ABC.#.....a#
+######@#@######
+###############
+######@#@######
+#b.....#.....c#
+###############"
+
+let test2c = toLines @"#############
+#DcBa.#.GhKl#
+#.###@#@#I###
+#e#d#####j#k#
+###C#@#@###J#
+#fEbA.#.FgHi#
+#############"
+
+let test2d = toLines @"#############
+#g#f.D#..h#l#
+#F###e#E###.#
+#dCba@#@BcIJ#
+#############
+#nK.L@#@G...#
+#M###N#H###.#
+#o#m..#i#jk.#
+#############"
+
 type Grid<'a when 'a : equality>(jagged: 'a[][]) =
     // aoc15:18
     let data = jagged
@@ -51,6 +85,11 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
     let maxY = (Array.length data) - 1
 
     let mutable formatItem = (fun x -> x.ToString())
+
+    member _.LastCol = maxX
+    member _.Width = maxX + 1
+    member _.LastRow = maxY
+    member _.Height = maxY + 1
 
     member _.Item
         with get(x, y) = data.[y].[x]
@@ -87,22 +126,28 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
 
     member this.Find(pred) = this.Filter(pred) |> Seq.head |> fst
 
-    member this.NHood(x, y) =
+    member this.NHoodCoords(x, y) =
         [| for x in (x - 1)..(x + 1) do
-            for y in (y - 1)..(y + 1) do
-                if this.InBounds (x, y)
-                then Some this.[x,y]
-                else None |]
+            for y in (y - 1)..(y + 1) do (x, y) |]
 
-    member this.Adjacent(x, y) =
-        let nhood = this.NHood (x, y)
+    member this.NHood(x, y) =
+        this.NHoodCoords (x, y)
+        |> Array.map this.TryGet
+
+    member this.AdjacentCoords(x, y) =
+        let nhood = this.NHoodCoords (x, y)
         Array.append nhood.[0 .. 3] nhood.[5 .. 8]
 
+    member this.Adjacent(x, y) =
+        this.AdjacentCoords (x, y)
+        |> Array.map this.TryGet
+
+    member this.BorderingCoords (x, y) =
+        [| (x, y - 1); (x + 1, y); (x, y + 1); (x - 1, y); |]
+
     member this.Bordering(x, y) =
-        [| this.TryGet (x, y - 1);
-           this.TryGet (x + 1, y);
-           this.TryGet (x, y + 1);
-           this.TryGet (x - 1, y); |]
+         this.BorderingCoords (x, y)
+         |> Array.map this.TryGet
 
     member this.Transform<'b  when 'b : equality>
         (generate: Grid<'a> -> int -> int -> 'b) : Grid<'b> =
@@ -110,6 +155,11 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
                 [| for x in 0 .. maxX do
                     generate this x y |] |]
             |> Grid<'b>
+
+    member _.Crop(x, width, y, height) =
+        data.[y .. (y + height - 1)]
+        |> Array.map (fun row -> row.[x .. (x + width - 1)])
+        |> Grid<'a>
 
     member _.Corners() = [| (0, 0); (0, maxY); (maxX, maxY); (maxX, 0) |]
     member this.Get((x, y)) = this.[x, y]
@@ -132,6 +182,9 @@ let buildTriton lines = tritonGrid (lines)
 
 type Location = Wall | Clear | Origin | Oxygen
 type Direction = North | South | West | East
+type Quad = NW | NE | SE | SW
+type Coord = int * int
+type QuadLoc = Map<Quad, char>
 
 let isDoor = Char.IsUpper
 let isKey = Char.IsLower
@@ -253,6 +306,13 @@ let keys places =
     |> List.filter isKey
     |> List.sort
 
+let doors places =
+    places
+    |> Map.toList
+    |> List.map fst
+    |> List.filter isDoor
+    |> List.sort
+
 let distance (triton: Triton) =
     let places = places triton
     let overview = overview triton places.['@']
@@ -308,9 +368,8 @@ let distance (triton: Triton) =
                 then known.[(aHead, bHead)] + depth a + depth b
                 else diff a b
 
-    let placesOfInterest = '@'::keys
-
     let distTable =
+        let placesOfInterest = '@'::keys
         [for a in placesOfInterest do for b in placesOfInterest do (a, b)]
         |> List.filter (fun (a, b) -> a < b)
         |> List.map (fun (a, b) -> (a, b), calcDist a b)
@@ -321,10 +380,22 @@ let distance (triton: Triton) =
         elif a < b then Map.find (a,b) distTable
         else distTable.[b, a]
 
+let qDistance qDists quad =
+    fun (a: QuadLoc) (b: char) ->
+        let quad = quad b
+        let dist = Map.find quad qDists
+        dist a.[quad] b
+
 let routeLength (distance: 'a -> 'a -> int) (route: List<'a>) =
     route
     |> List.pairwise
     |> List.sumBy (fun (a, b) -> distance a b)
+
+let qRouteLength quad qDistance droidLoc keys =
+    ((droidLoc, 0), keys)
+    ||> List.fold (fun (loc, dist) key ->
+        (Map.add (quad key) key loc), dist + (qDistance droidLoc key))
+    |> snd
 
 let collect findDist paths terminus =
     let tunnels = tunnels paths
@@ -344,6 +415,29 @@ let collect findDist paths terminus =
                     key) }
 
     collect 0 [] '@'
+    |> Seq.minBy fst
+    |> snd
+    |> List.rev
+    |> fun lst -> '@'::lst
+
+let qCollect (qDistance: QuadLoc -> char -> int) paths terminus start moveDroid =
+    let tunnels = tunnels paths
+    let targetKeys = Set <| reqdKeys paths terminus
+
+    let rec collect (dist: int) keysHeld here = seq{
+        let keysHeldSet = Set keysHeld
+        if keysHeldSet = targetKeys then yield (dist, keysHeld) else
+
+        let reachable = reachable tunnels targetKeys keysHeldSet
+        yield!
+            reachable
+            |> Seq.collect (fun key ->
+                collect
+                    (dist + qDistance here key)
+                    (key::keysHeld)
+                    (moveDroid here [key])) }
+
+    collect 0 [] start
     |> Seq.minBy fst
     |> snd
     |> List.rev
@@ -403,11 +497,111 @@ let merge findDist route1 route2 =
 
     List.rev <| merge [] route1 route2
 
-let Part1 () =
-    let triton = buildTriton input
+let qMerge qRouteLen (move: QuadLoc -> char list -> QuadLoc) droidLoc route1 route2 =
+    // let routeLen = routeLength qDistance
+    let isCmn = (Set.intersect (Set route1) (Set route2)).Contains
+    let uncmnSection route =
+        let section = route |> List.takeWhile (isCmn >> not)
+        section, (route |> List.skip section.Length)
+
+    let mergeSection (loc: QuadLoc) (inner: char list) (outer: char list) =
+        let rec merge rslt loc inner outer = seq{
+            match inner, outer with
+            | [], [] -> yield rslt
+            | [], h::t -> yield! merge (h::rslt) (move loc [h]) inner t
+            | _::_, [] -> failwith "didn't expect this"
+            | h::t, [a] ->  yield! merge (h::rslt) (move loc [h]) t [a]
+            | h1::t1, h2::t2 ->
+                yield! merge (h1::rslt) (move loc [h1]) t1 (h2::t2)
+                yield! merge (h2::rslt) (move loc [h2]) (h1::t1) t2 }
+        merge [] loc inner outer
+        |> Seq.minBy (fun lst -> qRouteLen loc lst)
+
+    let rec merge rslt loc route1 route2 =
+        match route1, route2 with
+        | [], [] -> rslt
+        | h::tail, [] -> merge (h::rslt) (move loc [h]) tail route2
+        | [], h::tail -> merge (h::rslt) (move loc [h]) route1 tail
+        | h1::tail1, h2::tail2 when isCmn h1 && isCmn h2 ->
+            if h1 <> h2 then failwith "sorta asserting"
+            merge (h1::rslt) (move loc [h1]) tail1 tail2
+        | h1::_, h2::tail2 when isCmn h1 ->
+            merge (h2::rslt) (move loc [h2]) route1 tail2
+        | h1::tail1, h2::_ when isCmn h2 ->
+            merge (h1::rslt) (move loc [h1]) tail1 route2
+        | _ ->
+            // let prev = rslt.Head
+            match uncmnSection route1, uncmnSection route2 with
+            | (unc1, h1::t1), (unc2, h2::t2) ->
+                assert (h1 = h2)
+                let mergedSection =
+                    mergeSection
+                        loc
+                        unc1
+                        (List.append unc2 [h2])
+                merge
+                    (List.append mergedSection.Tail rslt)
+                    (move loc mergedSection.Tail)
+                    (h1::t1)
+                    (h2::t2)
+            | (unc1, []), (unc2, []) ->
+                let ms1 = mergeSection loc unc1 unc2
+                let ms2 = mergeSection loc unc2 unc1
+                let mergedSection =
+                    if qRouteLen loc ms1 <= qRouteLen loc ms2 then ms1 else ms2
+                List.append mergedSection rslt
+            | _ -> failwith "didn't expect this"
+
+    List.rev <| merge [] droidLoc route1 route2
+
+let patch (triton: Triton) =
+    let start = (triton.Width / 2, triton.Height / 2)
+    let coords = (triton.NHoodCoords start)
+    let values = [| '@'; '#'; '@'; '#'; '#'; '#'; '@'; '#'; '@'; |]
+    Array.iter2 triton.Set coords values
+    triton
+
+let openDoors triton =
+    let places = places triton
+    let doors = doors places
+    let keys = keys places
+    Set.difference (Set doors) (Set keys)
+    |> Seq.iter (fun door ->
+        let coord = triton.Find ((=)door)
+        triton.Set coord '.' )
+
+
+let quads (triton: Triton) =
+    let width = triton.Width
+    let height = triton.Height
+    (assert (width % 2 <> 0))
+    (assert (height % 2 <> 0))
+    let haWidth, haHeight = width / 2, height / 2
+    let haWidthPlus, haHeightPlus  = haWidth + 1, haHeight + 1
+    [ triton.Crop (0, haWidthPlus, 0, haHeightPlus);
+      triton.Crop (haWidth, haWidthPlus, 0, haHeightPlus);
+      triton.Crop (haWidth, haWidthPlus, haHeight, haHeightPlus)
+      triton.Crop (0, haWidthPlus, haHeight, haHeightPlus); ]
+
+let quad (triton: Triton) =
+    let width = triton.Width
+    let height = triton.Height
+    let haWidth, haHeight = width / 2, height / 2
+    let places = places triton
+
+    fun loc ->
+        let x, y = places.[loc]
+        match x < haWidth, y < haHeight with
+        | true, true -> NW
+        | false, true -> NE
+        | false, false -> SE
+        | true, false -> SW
+
+
+let solve (triton: Triton) =
     let places = places triton
     let overview = overview triton places.['@']
-    let paths = paths overview 
+    let paths = paths overview
     let termini = paths |> tunnels |> List.map List.last
 
     let distance = distance triton
@@ -417,13 +611,102 @@ let Part1 () =
         |> List.map (fun terminus ->
             collect distance paths terminus)
         |> List.sortByDescending List.length
-
+    // routes
     let routeLength = routeLength distance
     routes
     |> List.reduce (merge distance)
     |> routeLength
 
+let Part1 () = ()
+    // solve (buildTriton input)
+    // let triton = buildTriton input
+    // let places = places triton
+    // let overview = overview triton places.['@']
+    // let paths = paths overview
+    // let termini = paths |> tunnels |> List.map List.last
+
+    // let distance = distance triton
+
+    // let routes =
+    //     termini
+    //     |> List.map (fun terminus ->
+    //         collect distance paths terminus)
+    //     |> List.sortByDescending List.length
+    // routes
+    // // let routeLength = routeLength distance
+    // // routes
+    // // |> List.reduce (merge distance)
+    // // |> routeLength
+
 
 let Part2 () =
-    ()
-    //patch
+    let triton = buildTriton input
+    let places = places triton
+    let triton = patch triton
+    openDoors triton
+    let [nw; ne; se; sw] = (quads triton)
+    let quads =
+        [(NW, nw); (NE, ne); (SE, se); (SW, sw)]
+        |> Map
+    
+    Map.map (fun _ grid -> solve grid) quads
+    |> Map.toList
+    |> List.sumBy snd
+    
+
+
+
+    // let qDists = quads |> Map.map (fun _ quad ->  distance quad)
+    // let start = quads |> Map.map (fun _ _ -> '@')
+
+    // let startCoord (quad: Triton) = quad.Find ((=) '@')
+
+    // let overviews =
+    //     quads
+    //     |> Map.toList
+    //     |> List.collect (fun (_, quad) ->
+    //         explore quad (startCoord quad) (Char.IsLetter) true)
+    //     |> Map
+    // let paths = paths overviews
+    // let termini = paths |> tunnels |> List.map List.last
+
+    // let quad = (quad triton)
+    // let qDistance = qDistance qDists quad
+    // let moveDroid (droidLoc: QuadLoc) (keyLocs: char list) : QuadLoc =
+    //     (droidLoc, keyLocs)
+    //     ||> List.fold (fun droidLoc keyLoc ->
+    //         (Map.add (quad keyLoc) keyLoc droidLoc))
+
+    // let qRouteLength = qRouteLength quad qDistance
+
+    // let routes =
+    //     termini
+    //     |> List.map ((fun terminus ->
+    //         qCollect qDistance paths terminus start moveDroid) >> List.tail)
+    //     |> List.sortByDescending List.length
+
+    // let rec permutations list =
+    //     // aoc15:13
+    //     let rec insertAlong i list =
+    //         match list with
+    //         | [] -> [[i]]
+    //         | h::t -> (i::list)::(List.map (fun sub -> h::sub) (insertAlong i t))
+    //     match list with
+    //     | [] -> [[]]
+    //     | head::tail -> List.collect (insertAlong head) (permutations tail)
+
+    // let long = routes |> List.take 1
+    // let short = routes |> List.skip long.Length
+
+    // let reduce routes = 
+    //     try
+    //         Some (List.reduce (qMerge qRouteLength moveDroid start) routes)
+    //     with
+    //         e -> None
+    // // let xx = 
+    // permutations long
+    // |> List.map ((fun routes -> List.append routes short)
+    //                 >> reduce)
+    // |> List.choose id                
+    // |> List.map (qRouteLength start)
+    // |> List.min

@@ -108,21 +108,23 @@ type Grid<'a when 'a : equality>(jagged: 'a[][]) =
     member this.Find(pred) = this.Filter(pred) |> Seq.head |> fst
 
     member this.NHood(x, y) =
-        [| for x in (x - 1)..(x + 1) do
-            for y in (y - 1)..(y + 1) do
-                if this.InBounds (x, y)
-                then Some this.[x,y]
-                else None |]
+        this.NHoodCoords (x, y)
+        |> Array.map this.TryGet
 
-    member this.Adjacent(x, y) =
-        let nhood = this.NHood (x, y)
+    member this.AdjacentCoords(x, y) =
+        let nhood = this.NHoodCoords (x, y)
         Array.append nhood.[0 .. 3] nhood.[5 .. 8]
 
-    member this.BorderingCoords(x, y) =
+    member this.Adjacent(x, y) =
+        this.AdjacentCoords (x, y)
+        |> Array.map this.TryGet
+
+    member this.BorderingCoords (x, y) =
         [| (x, y - 1); (x + 1, y); (x, y + 1); (x - 1, y); |]
 
     member this.Bordering(x, y) =
-        this.BorderingCoords(x, y) |> Array.map this.TryGet
+         this.BorderingCoords (x, y)
+         |> Array.map this.TryGet
 
     member this.Transform<'b  when 'b : equality>
         (generate: Grid<'a> -> int -> int -> 'b) : Grid<'b> =
