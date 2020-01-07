@@ -25,7 +25,7 @@ let input = lines |> Array.map parseLine
 
 
 let Part1 () =
-    input
+    ()
 
 let Part2 () =
     ()
