@@ -113,10 +113,65 @@ let Part1 () =
     let program = compile code
     let provideInput, handleOutput, sendCommand = controlInverter ()
     let run = computer program provideInput handleOutput
+    print @"
+                                                              Engineering
+                                                            ┌─────────────┐
+                                                            │             │
+                                                            │   polygon   │
+                                                            │      *      │
+                                                            └──────┬──────┘
+                        Security                                   │
+    Cockpit            Checkpoint         Crew Quaters         Holo│deck
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌──────┴──────┐
+│      *      │     │             │     │             │     │             │
+│     /~\     ├─────┤             ├─────┤  fuel cell  ├─────┤             │
+│    /~~~\    │ _^_ │             │     │             │     │             │
+└─────────────┘     └─────────────┘     └─────────────┘     └──────┬──────┘
+                                                                   │
+                                                                   │
+  Science Lab          Navigation           Kitchen            Corr│idor
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌──────┴──────┐
+│!! CAUTION !!│     │             │     │             │     │             │
+│  escape pod ├─────┤    shell    ├─────┤   antenna   ├─────┤  candy cane │
+│             │     │      *      │     │             │     │      *      │
+└─────────────┘     └──────┬──────┘     └──────┬──────┘     └──────┬──────┘
+                           │                   │                   │
+                           │              Warp │ Drive             │
+    Passages            Arc│ade           Maint│enance             │
+┌─────────────┐     ┌──────┴──────┐     ┌──────┴──────┐            │
+│             │     │!! CAUTION !!│     │             │            │
+│             ├─────┤    giant    │     │ whirled peas│            │
+│             │     │electromagnet│     │             │            │
+└─────────────┘     └─────────────┘     └─────────────┘            │
+                                                                   │
+                                         Hot Chocolate             │
+    Storage             Hallway             Fountain               │
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐            │
+│!! CAUTION !!│     │             │     │!! CAUTION !!│            │
+│ molten lava ├─────┤             ├─────┤   photons   │            │
+│             │     │             │     │             │            │
+└─────────────┘     └──────┬──────┘     └─────────────┘            │
+                           │                                       │
+                           │                                       │
+     Stables          Obser│vatory          Sick Bay          Hull │Breach
+┌─────────────┐     ┌──────┴──────┐     ┌─────────────┐     ┌──────┴──────┐
+│             │     │!! CAUTION !!│     │             │     │             │
+│   hologram  ├─────┤  infinite   ├─────┤             ├─────┤    start    │
+│             │     │    loop     │     │             │     │             │
+└─────────────┘     └─────────────┘     └─────────────┘     └──────┬──────┘
+                                                                   │
+                                                              Gift │ Wrap-
+                                                              ping │Center
+                                                            ┌──────┴──────┐
+                                                            │             │
+                                                            │ fixed point │
+                                                            │      *      │
+                                                            └─────────────┘"
     let runTask = Task.Run run
     while true do 
         let command = Console.ReadLine ()
         sendCommand (command + "\n")
 
+
 let Part2 () =
-    ()
+    "Merry Christmast Everyone!"
