@@ -13,8 +13,8 @@
             "args": [],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
-            "console": "internalConsole"
-            // "console": "externalTerminal"
+            // "console": "internalConsole"
+            "console": "externalTerminal"
         }
 
     ]
